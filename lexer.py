@@ -1,13 +1,13 @@
-import copy
+import copy as _copy
 
-from more_itertools import peekable
-from sly import Lexer, Parser
+from more_itertools import peekable as _peekable
+from sly import Lexer as _Lexer
 
 
 # Compute column.
 #     input is the input text string
 #     token is a token instance
-def find_column(text, token):
+def _find_column(text, token):
     last_cr = text.rfind('\n', 0, token.index)
     if last_cr < 0:
         last_cr = 0
@@ -15,7 +15,7 @@ def find_column(text, token):
     return column
 
 
-class VyperLexer(Lexer):
+class _VyperLexer(_Lexer):
     tokens = {
         NAME,
         IF,
@@ -72,11 +72,14 @@ class VyperLexer(Lexer):
         super().__init__(*args, **kwargs)
 
 
-def tokenize(text, *args, **kwargs):
+TOKENS = _VyperLexer.tokens - {'TAB', 'SPACE'}
+
+
+def tokenize(text):
     """
     Override behavior to integrate Python indent counter
     """
-    tokens = peekable(VyperLexer().tokenize(text, *args, **kwargs))
+    tokens = _peekable(_VyperLexer().tokenize(text))
     indent_level = 0
 
     for t in tokens:
@@ -116,7 +119,7 @@ def tokenize(text, *args, **kwargs):
 
             # Less indent than current indent level
             elif lvl < indent_level:
-                t = copy.deepcopy(t)  # Create a new token from the last one
+                t = _copy.deepcopy(t)  # Create a new token from the last one
                 t.type = 'DEDENT'  # Change TAB to DEDENT
                 # yield number of DEDENTs equal to the difference in levels
                 missing_levels = indent_level - lvl
