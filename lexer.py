@@ -1,8 +1,8 @@
-import copy as _copy
-
 from more_itertools import peekable as _peekable
-from sly import Lexer as _Lexer
-
+from sly.lex import (
+    Lexer as _Lexer,
+    Token,
+)
 
 # Compute column.
 #     input is the input text string
@@ -39,9 +39,11 @@ class _VyperLexer(_Lexer):
         self.lineno += t.value.count('\n')
         return t
 
+    # Python tab-aware scoping is tricky to parse.
+    # The below functionality is only here to aid in parsing whitespace for scoping.
     @_(r' {4}|\t')
     def TAB(self, t):
-        col = find_column(self.text, t)
+        col = _find_column(self.text, t)
         if t.value == '\t' > 0:
             if self.__using_spaces:
                 raise SyntaxError(
@@ -60,16 +62,16 @@ class _VyperLexer(_Lexer):
     def SPACE(self, t):
         return t
 
-    def error(self, t):
-        col = find_column(self.text, t)
-        raise SyntaxError(
-            f"Illegal Character {t.value[0]} @ line {self.lineno}, col {col}"
-        )
-
     def __init__(self, *args, **kwargs):
         self.__using_tab_char = False
         self.__using_spaces = False
         super().__init__(*args, **kwargs)
+
+    def error(self, t):
+        col = _find_column(self.text, t)
+        raise SyntaxError(
+            f"Illegal Character {t.value[0]} @ line {self.lineno}, col {col}"
+        )
 
 
 TOKENS = _VyperLexer.tokens - {'TAB', 'SPACE'}
@@ -80,6 +82,9 @@ def tokenize(text):
     Override behavior to integrate Python indent counter
     """
     tokens = _peekable(_VyperLexer().tokenize(text))
+
+    # Python tab-aware scoping is tricky to parse.
+    # The below functionality is only here to aid in parsing whitespace for scoping.
     indent_level = 0
 
     for t in tokens:
@@ -119,13 +124,16 @@ def tokenize(text):
 
             # Less indent than current indent level
             elif lvl < indent_level:
-                t = _copy.deepcopy(t)  # Create a new token from the last one
-                t.type = 'DEDENT'  # Change TAB to DEDENT
+                dedent = Token()  # Create a new token from the last one
+                dedent.type = 'DEDENT'  # Change TAB to DEDENT
+                dedent.value  = t.value
+                dedent.index  = t.index
+                dedent.lineno = t.lineno
                 # yield number of DEDENTs equal to the difference in levels
                 missing_levels = indent_level - lvl
                 for _ in range(missing_levels):
                     indent_level -= 1  # dedent by one level
-                    yield t
+                    yield dedent
 
         elif t.type == 'SPACE':
             continue  # We don't care about spaces otherwise
