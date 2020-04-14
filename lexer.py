@@ -17,49 +17,101 @@ def _find_column(text, token):
 
 class _VyperLexer(_Lexer):
     tokens = {
-        NAME,
-        IF,
-        ELSE,
-        INDENT,
-        DEDENT,
-        COLON,
-        TAB,
-        SPACE,
+        NAME, STRING, COMMENT, DOCSTR,
+        DEC_NUM, HEX_NUM, OCT_NUM,
+        BIN_NUM, FLOAT, BOOL,
+        IMPORT, FROM, AS,
+        IF, ELIF, ELSE, FOR, IN, ARROW,
+        AND, OR, NOT, XOR, SHL, SHR,
+        EQ, NE, LT, LE, GT, GE,
+        SKIP, PASS, BREAK, CONTINUE,
+        LOG, RETURN, RAISE, ASSERT,
+        INDENT, DEDENT, TAB, SPACE,
+    }
+
+    literals = {
+        '=', ',',
+        '.', ':',
+        '+', '-',
+        '*', '/',
+        '%', '@',
+        '(', ')',
+        '[', ']',
+        '{', '}',
     }
 
     # Tokens
+
+    @_('|'.join([r'"""(.|\s)*"""', r"'''(.\s)*'''"]))
+    def DOCSTR(self, t):
+        # Docstrings are multiline
+        self.lineno += max(t.value.count('\n'), t.value.count('\r'))
+        return t
+
+    COMMENT = r"[#].*"
+    STRING = '|'.join([r'"(?!"").*"', r"'(?!'').*'"])
+
+    HEX_NUM = r'0x[\da-f]*'
+    OCT_NUM = r'0o[0-7]*'
+    BIN_NUM = r'0b[0-1]*'
+    FLOAT = r'((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))'
+    DEC_NUM = r'0|[1-9]\d*'
+
+    ARROW = '->'
+    SHL = '<<'
+    SHR = '>>'
+    EQ = '=='
+    NE = '!='
+    LT = '<'
+    LE = '<='
+    GT = '>'
+    GE = '>='
+
     NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    # Keywords
     NAME['if'] = IF
     NAME['else'] = ELSE
+    NAME['import'] = IMPORT
+    NAME['from'] = FROM
+    NAME['as'] = AS
+    NAME['if'] = IF
+    NAME['elif'] = ELIF
+    NAME['else'] = ELSE
+    NAME['for'] = FOR
+    NAME['in'] = IN
+    NAME['and'] = AND
+    NAME['or'] = OR
+    NAME['not'] = NOT
+    NAME['xor'] = XOR
+    NAME['True'] = BOOL
+    NAME['False'] = BOOL
 
-    COLON = r':'
-
-    @_(r'\n+')
+    @_(r'[\r\n]+')
     def NEWLINE(self, t):
-        self.lineno += t.value.count('\n')
+        self.lineno += max(t.value.count('\n'), t.value.count('\r'))
         return t
 
     # Python tab-aware scoping is tricky to parse.
     # The below functionality is only here to aid in parsing whitespace for scoping.
     @_(r' {4}|\t')
     def TAB(self, t):
-        col = _find_column(self.text, t)
-        if t.value == '\t' > 0:
-            if self.__using_spaces:
-                raise SyntaxError(
-                    f"Mixing tabs and spaces @ line {self.lineno}, col {col}"
-                )
+        if t.value == '\t':
             self.__using_tab_char = True
         else:
-            if self.__using_tab_char:
-                raise SyntaxError(
-                    f"Mixing tabs and spaces @ line {self.lineno}, col {col}"
-                )
             self.__using_spaces = True
+
+        # Can only use 4 spaces or the tab char to denote indent, not both
+        if self.__using_spaces and self.__using_tab_char:
+            col = _find_column(self.text, t)
+            raise SyntaxError(
+                f"Mixing tabs and spaces @ line {self.lineno}, col {col}"
+            )
+
         return t
 
     @_(r' {1,3}')
     def SPACE(self, t):
+        # Only need this for parsing, discard later
         return t
 
     def __init__(self, *args, **kwargs):
