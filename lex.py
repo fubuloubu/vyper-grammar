@@ -15,15 +15,15 @@ def _find_column(text, token):
     return column
 
 
-class _VyperLexer(_Lexer):
+class VyperLexer(_Lexer):
     tokens = {
         NAME, STRING, COMMENT, DOCSTR,
         DEC_NUM, HEX_NUM, OCT_NUM,
         BIN_NUM, FLOAT, BOOL,
-        IMPORT, FROM, AS,
+        IMPORT, FROM, AS, SELF, DEF,
         IF, ELIF, ELSE, FOR, IN, ARROW,
         AND, OR, NOT, XOR, SHL, SHR,
-        EQ, NE, LT, LE, GT, GE,
+        POW, EQ, NE, LT, LE, GT, GE,
         SKIP, PASS, BREAK, CONTINUE,
         LOG, RETURN, RAISE, ASSERT,
         INDENT, DEDENT, TAB, SPACE,
@@ -58,6 +58,7 @@ class _VyperLexer(_Lexer):
     DEC_NUM = r'0|[1-9]\d*'
 
     ARROW = '->'
+    POW = r'\*\*'
     SHL = '<<'
     SHR = '>>'
     EQ = '=='
@@ -69,11 +70,13 @@ class _VyperLexer(_Lexer):
 
     NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
     # Keywords
+    NAME['def'] = DEF
     NAME['if'] = IF
     NAME['else'] = ELSE
     NAME['import'] = IMPORT
     NAME['from'] = FROM
     NAME['as'] = AS
+    NAME['self'] = SELF
     NAME['if'] = IF
     NAME['elif'] = ELIF
     NAME['else'] = ELSE
@@ -126,14 +129,11 @@ class _VyperLexer(_Lexer):
         )
 
 
-TOKENS = _VyperLexer.tokens - {'TAB', 'SPACE'}
-
-
 def tokenize(text):
     """
     Override behavior to integrate Python indent counter
     """
-    tokens = _peekable(_VyperLexer().tokenize(text))
+    tokens = _peekable(VyperLexer().tokenize(text))
 
     # Python tab-aware scoping is tricky to parse.
     # The below functionality is only here to aid in parsing whitespace for scoping.
