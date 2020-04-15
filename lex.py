@@ -20,13 +20,13 @@ class VyperLexer(_Lexer):
         NAME, STRING, COMMENT, DOCSTR,
         DEC_NUM, HEX_NUM, OCT_NUM,
         BIN_NUM, FLOAT, BOOL,
-        IMPORT, FROM, AS, SELF, DEF,
+        IMPORT, FROM, AS, DEF,
         IF, ELIF, ELSE, FOR, IN, ARROW,
         AND, OR, NOT, XOR, SHL, SHR,
         POW, EQ, NE, LT, LE, GT, GE,
         SKIP, PASS, BREAK, CONTINUE,
         LOG, RETURN, RAISE, ASSERT,
-        INDENT, DEDENT, TAB, SPACE,
+        INDENT, DEDENT, TAB, SPACE, NEWLINE,
     }
 
     literals = {
@@ -76,7 +76,6 @@ class VyperLexer(_Lexer):
     NAME['import'] = IMPORT
     NAME['from'] = FROM
     NAME['as'] = AS
-    NAME['self'] = SELF
     NAME['if'] = IF
     NAME['elif'] = ELIF
     NAME['else'] = ELSE
