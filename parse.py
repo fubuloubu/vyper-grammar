@@ -2,8 +2,14 @@ from sly import Parser as _Parser
 
 from lex import VyperLexer
 
-
 class _VyperParser(_Parser):
+
+    def error(self, tok):
+        raise SyntaxError(f"""Could not parse line {tok.lineno}:
+
+    {tok.value}
+    """)
+
     tokens = VyperLexer.tokens - {'TAB', 'SPACE'}
     literals = VyperLexer.literals
 
@@ -16,6 +22,19 @@ class _VyperParser(_Parser):
 
     start = 'module'
 
+    @_('module_items')
+    def module(self, p):
+        return ('module', p.module_items)
+
+    @_('module_items module_item')
+    @_('module_item')
+    @_('')
+    def module_items(self, p):
+        items = getattr(p, 'module_items', [])
+        item = getattr(p, 'module_item', None)
+        if item:
+            items += [item]
+        return items
 
     @_('COMMENT NEWLINE')
     @_('NEWLINE')
@@ -24,12 +43,12 @@ class _VyperParser(_Parser):
         pass
 
     @_('newline')
-    def module(self, p):
+    def module_item(self, p):
         pass
 
     ##### IMPORTS #####
     @_('import_stmt')
-    def module(self, p):
+    def module_item(self, p):
         return p.import_stmt
 
     @_('IMPORT import_path maybe_alias newline')
@@ -62,7 +81,7 @@ class _VyperParser(_Parser):
 
     ##### FUNCTION DEFS #####
     @_('function')
-    def module(self, p):
+    def module_item(self, p):
         return p.function
 
     @_('decorators NEWLINE DEF NAME "(" arguments ")" maybe_return ":" body')
@@ -80,12 +99,10 @@ class _VyperParser(_Parser):
     @_('decorator')
     @_('')
     def decorators(self, p):
-        if p.decorators:
-            decorators = p.decorators
-        else:
-            decorators = []
-        if p.decorator:
-            decorators += [p.decorator]
+        decorators = getattr(p, 'decorators', [])
+        decorator = getattr(p, 'decorator', None)
+        if decorator:
+            decorators += [decorator]
         return decorators
 
     @_('"@" NAME')
@@ -96,12 +113,10 @@ class _VyperParser(_Parser):
     @_('argument')
     @_('')
     def arguments(self, p):
-        if p.arguments:
-            arguments = p.arguments
-        else:
-            arguments = []
-        if p.argument:
-            arguments += [p.argument]
+        arguments = getattr(p, 'arguments', [])
+        argument = getattr(p, 'argument', None)
+        if argument:
+            arguments += [argument]
         return arguments
 
     @_('NAME ":" type "=" variable')
@@ -125,13 +140,7 @@ class _VyperParser(_Parser):
     @_('stmt')
     @_('')
     def stmts(self, p):
-        if p.stmts:
-            stmts = p.stmts
-        else:
-            stmts = []
-        if p.stmt:
-            stmts += [p.stmt]
-        return stmts
+        return _get_list(p, 'stmts', 'stmt')
 
     @_('DOCSTR newline')
     def stmt(self, p):
@@ -154,13 +163,8 @@ class _VyperParser(_Parser):
     @_('variable')
     @_('SKIP')
     def multiple_assign(self, p):
-        if p.multiple_assign:
-            assign_list = p.multiple_assign
-        else:
-            assign_list = []
-        if p.variable:
-            assign_list += [p.variable]
-        if p.SKIP:
+        assign_list = _get_list(p, 'multiple_assign', 'variable')
+        if getattr(p, 'SKIP', False):
             assign_list += [None]
         return assign_list
 
@@ -223,13 +227,12 @@ class _VyperParser(_Parser):
     @_('ELIF expr ":" body')
     @_('')
     def elif_list(self, p):
-        if p.elif_list:
-            elif_list = p.elif_list
-        else:
-            elif_list = []
-        if p.expr and p.body:
-            elif_list += [(p.expr, p.body)]
-        return elif_list
+        items = getattr(p, 'elif_list', [])
+        cond = getattr(p, 'expr', None)
+        action = getattr(p, 'body', None)
+        if cond and action:
+            items += [(cond, action)]
+        return items
 
     @_('ELSE ":" body')
     @_('')
@@ -302,12 +305,11 @@ class _VyperParser(_Parser):
     @_('NAME ":" dict_item')
     @_('')
     def dict_items(self, p):
-        if p.dict_items:
-            dict_items = p.dict_items
-        else:
-            dict_items = {}
-        if p.NAME and p.dict_item:
-            dict_items[p.NAME] = p.dict_item
+        dict_items = getattr(p, 'dict_items', [])
+        key = getattr(p, 'NAME', None)
+        val = getattr(p, 'dict_item', None)
+        if key and val:
+            dict_items[key] = val
         return dict_items
 
     @_('literal')
@@ -331,12 +333,10 @@ class _VyperParser(_Parser):
     @_('tuple_item')
     @_('')
     def tuple_items(self, p):
-        if p.tuple_items:
-            tuple_items = p.tuple_items
-        else:
-            tuple_items = []
-        if p.tuple_item:
-            tuple_items += [p.tuple_item]
+        tuple_items = getattr(p, 'tuple_items', [])
+        tuple_item = getattr(p, 'tuple_item', None)
+        if tuple_item:
+            tuple_items += [tuple_item]
         return tuple_items
 
     @_('literal')
@@ -357,12 +357,10 @@ class _VyperParser(_Parser):
     @_('list_item')
     @_('')
     def list_items(self, p):
-        if p.list_items:
-            list_items = p.list_items
-        else:
-            list_items = []
-        if p.list_item:
-            list_items += [p.list_item]
+        list_items = getattr(p, 'list_items', [])
+        list_item = getattr(p, 'list_item', None)
+        if list_item:
+            list_items += [list_item]
         return list_items
 
     @_('literal')
@@ -390,12 +388,10 @@ class _VyperParser(_Parser):
     @_('parameter')
     @_('')
     def parameters(self, p):
-        if p.parameters:
-            parameters = p.parameters
-        else:
-            parameters = []
-        if p.parameter:
-            parameters += [p.parameter]
+        parameters = getattr(p, 'parameters', [])
+        parameter = getattr(p, 'parameter', None)
+        if parameter:
+            parameters += [parameter]
         return parameters
 
     # Keyword arguments
