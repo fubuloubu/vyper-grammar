@@ -31,9 +31,10 @@ class _VyperParser(_Parser):
     @_('')
     def module_items(self, p):
         items = getattr(p, 'module_items', [])
+        # imports may return a list here
         item = getattr(p, 'module_item', None)
         if item:
-            items += [item]
+            items += item if isinstance(item, list) else [item]
         return items
 
     @_('COMMENT NEWLINE')
@@ -43,8 +44,22 @@ class _VyperParser(_Parser):
         pass
 
     @_('newline')
+    @_('')
+    def maybe_newline(self, p):
+        pass
+
+    @_('","')
+    @_('')
+    def maybe_comma(self, p):
+        pass
+
+    @_('newline')
     def module_item(self, p):
         pass
+
+    @_('DOCSTR')
+    def module_item(self, p):
+        return p.DOCSTR
 
     ##### IMPORTS #####
     @_('import_stmt')
@@ -53,15 +68,29 @@ class _VyperParser(_Parser):
 
     @_('IMPORT import_path maybe_alias newline')
     def import_stmt(self, p):
-        return {'path': p.import_path, 'alias': p.maybe_alias}
+        return ('import', {'path': p.import_path, 'alias': p.maybe_alias})
 
-    @_('FROM import_path IMPORT NAME maybe_alias newline')
+    @_('FROM base_path IMPORT NAME maybe_alias newline')
     def import_stmt(self, p):
-        return {'path': p.import_path + [p.NAME], 'alias': p.maybe_alias}
+        return ('import', {'path': p.base_path + [p.NAME], 'alias': p.maybe_alias})
 
-    @_('FROM import_path IMPORT "*" newline')
+    @_('FROM base_path IMPORT "*" newline')
     def import_stmt(self, p):
-        return {'path': p.import_path + ['*'], 'alias': None}
+        return ('import', {'path': p.base_path + ['*'], 'alias': None})
+
+    @_('FROM base_path IMPORT "(" multiple_imports ")" newline')
+    def import_stmt(self, p):
+        return [
+            ('import', {'path': p.base_path + [name], 'alias': alias})
+            for name, alias in p.multiple_imports
+        ]
+
+    @_('multiple_imports NAME maybe_alias maybe_comma maybe_newline')
+    @_('NAME maybe_alias maybe_comma maybe_newline')
+    def multiple_imports(self, p):
+        items = getattr(p, 'multiple_imports', [])
+        items += [(p.NAME, p.maybe_alias)]
+        return items
 
     @_('import_path "." NAME')
     def import_path(self, p):
@@ -75,27 +104,43 @@ class _VyperParser(_Parser):
     def import_path(self, p):
         return [p.NAME]
 
+    @_('base_path "." NAME')
+    def base_path(self, p):
+        return p.base_path + [p.NAME]
+
+    @_('"." base_path')
+    def base_path(self, p):
+        return ['.'] + p.base_path
+
+    @_('NAME')
+    def base_path(self, p):
+        return [p.NAME]
+
+    @_('"."')
+    def base_path(self, p):
+        return ['.']
+
     @_('AS NAME', '')
     def maybe_alias(self, p):
-        return p.NAME if p.NAME else None
+        return getattr(p, 'NAME', None)
 
     ##### FUNCTION DEFS #####
     @_('function')
     def module_item(self, p):
         return p.function
 
-    @_('decorators NEWLINE DEF NAME "(" arguments ")" maybe_return ":" body')
+    @_('decorators DEF NAME "(" parameters ")" maybe_return ":" newline maybe_docstr body')
     def function(self, p):
-        return {
-            'decorators': p.maybe_decorators,
+        return ('function', {
+            'decorators': p.decorators,
             'name': p.NAME,
-            'arguments': p.arguments,
+            'parameters': p.parameters,
             'returns': p.maybe_return,
             'doc': p.maybe_docstr,
-            'body': p.body
-        }
+            'body': p.body,
+        })
 
-    @_('decorators NEWLINE decorator')
+    @_('decorators decorator')
     @_('decorator')
     @_('')
     def decorators(self, p):
@@ -105,32 +150,39 @@ class _VyperParser(_Parser):
             decorators += [decorator]
         return decorators
 
-    @_('"@" NAME')
+    @_('"@" NAME newline')
+    @_('"@" NAME "(" arguments ")" newline')
     def decorator(self, p):
-        return {'name': p.NAME}
+        return ('decorator', {'name': p.NAME, 'arguments': getattr(p, 'arguments', None)})
 
-    @_('arguments "," argument')
-    @_('argument')
+    @_('parameters "," maybe_newline parameter maybe_comma maybe_newline')
+    @_('maybe_newline parameter maybe_comma maybe_newline')
     @_('')
-    def arguments(self, p):
-        arguments = getattr(p, 'arguments', [])
-        argument = getattr(p, 'argument', None)
-        if argument:
-            arguments += [argument]
-        return arguments
+    def parameters(self, p):
+        parameters = getattr(p, 'parameters', [])
+        parameter = getattr(p, 'parameter', None)
+        if parameter:
+            parameters += [parameter]
+        return parameters
 
     @_('NAME ":" type "=" variable')
     @_('NAME ":" type')
-    def argument(self, p):
-        return {
+    def parameter(self, p):
+        return ('parameter', {
             'name': p.NAME,
             'type': p.type,
-            'default_value': p.variable if p.variable else None
-        }
+            'default_value': getattr(p, 'variable', None)
+        })
 
     @_('ARROW NAME', '')
     def maybe_return(self, p):
-        return p.NAME if p.NAME else None
+        return getattr(p, 'NAME', None)
+
+    @_('DOCSTR newline')
+    @_('')
+    def maybe_docstr(self, p):
+        # TODO This doesn't work (DOCSTR in stmt catches it instead)
+        return getattr(p, 'DOCSTR', None)
 
     @_('INDENT stmts DEDENT')
     def body(self, p):
@@ -140,7 +192,11 @@ class _VyperParser(_Parser):
     @_('stmt')
     @_('')
     def stmts(self, p):
-        return _get_list(p, 'stmts', 'stmt')
+        stmts = getattr(p, 'stmts', [])
+        stmt = getattr(p, 'stmt', None)
+        if stmt:
+            stmts += [stmt]
+        return stmts
 
     @_('DOCSTR newline')
     def stmt(self, p):
@@ -163,7 +219,10 @@ class _VyperParser(_Parser):
     @_('variable')
     @_('SKIP')
     def multiple_assign(self, p):
-        assign_list = _get_list(p, 'multiple_assign', 'variable')
+        assign_list = getattr(p, 'multiple_assign', [])
+        variable = getattr(p, 'variable', None)
+        if variable:
+            assign_list += [variable]
         if getattr(p, 'SKIP', False):
             assign_list += [None]
         return assign_list
@@ -175,29 +234,29 @@ class _VyperParser(_Parser):
     @_('variable POW "=" expr newline')
     @_('variable "%" "=" expr newline')
     def stmt(self, p):
-        if p.POW:
+        if getattr(p, 'POW', False):
             op = '**'
         else:
             op = p[1]
         expr = (op, p.variable, p.expr)
         # Re-arrange to BinOp
-        return {'target': p.variable, 'expr': expr}
+        return ('assign', {'target': p.variable, 'expr': expr})
 
     @_('NAME ":" type "=" expr newline')
     def stmt(self, p):
-        return {'name': p.NAME, 'type': p.type, 'initial_value': p.expr}
+        return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.expr})
 
     @_('variable "=" expr newline')
     def stmt(self, p):
-        return {'target': p.variable, 'expr': p.expr}
+        return ('assign', {'target': p.variable, 'expr': p.expr})
 
     @_('BREAK newline')
     def stmt(self, p):
-        return 'break'
+        return ('break',)
 
     @_('CONTINUE newline')
     def stmt(self, p):
-        return 'continue'
+        return ('continue',)
 
     @_('ASSERT expr newline')
     def stmt(self, p):
@@ -205,7 +264,7 @@ class _VyperParser(_Parser):
 
     @_('RAISE newline')
     def stmt(self, p):
-        return 'raise'
+        return ('raise',)
 
     @_('RETURN expr newline')
     def stmt(self, p):
@@ -215,16 +274,16 @@ class _VyperParser(_Parser):
     def stmt(self, p):
         return ('log', {'type': p.NAME, 'args': p.dict })
 
-    @_('FOR NAME IN expr ":" body')
+    @_('FOR NAME IN expr ":" newline body')
     def stmt(self, p):
         return ('for', {'iter_var': p.NAME, 'iter': p.expr, 'body': p.body})
 
-    @_('IF expr ":" body elif_list maybe_else')
+    @_('IF expr ":" newline body elif_list maybe_else')
     def stmt(self, p):
-        return ('if', [(p.expr, p.body)] + p.maybe_elif + p.maybe_else)
+        return ('if', [(p.expr, p.body)] + p.elif_list + p.maybe_else)
 
-    @_('elif_list ELIF expr ":" body')
-    @_('ELIF expr ":" body')
+    @_('elif_list ELIF expr ":" newline body')
+    @_('ELIF expr ":" newline body')
     @_('')
     def elif_list(self, p):
         items = getattr(p, 'elif_list', [])
@@ -234,11 +293,12 @@ class _VyperParser(_Parser):
             items += [(cond, action)]
         return items
 
-    @_('ELSE ":" body')
+    @_('ELSE ":" newline body')
     @_('')
     def maybe_else(self, p):
-        if p.body:
-            return [(None, p.body)]
+        action = getattr(p, 'body', None)
+        if action:
+            return [(None, action)]
         else:
             return []
 
@@ -265,7 +325,7 @@ class _VyperParser(_Parser):
     @_('expr NE expr')
     @_('expr IN expr')
     def expr(self, p):
-        if p.POW:
+        if getattr(p, 'POW', False):
             op = '**'
         else:
             op = p[1]
@@ -294,7 +354,58 @@ class _VyperParser(_Parser):
     ##### Type definitions #####
     @_('NAME')
     def type(self, p):
-        pass
+        return ('type', p.NAME)
+
+    # Array definitions
+    @_('array_type')
+    def type(self, p):
+        return p.array_type
+
+    @_('array_type "[" DEC_NUM "]"')
+    def array_type(self, p):
+        return ('Array', {'type': p.array_type, 'size': p.DEC_NUM})
+
+    @_('array_type "[" NAME "]"')
+    def array_type(self, p):
+        return ('Array', {'type': p.array_type, 'size': p.NAME})
+
+    @_('NAME "[" DEC_NUM "]"')
+    def array_type(self, p):
+        return ('Array', {'type': p.NAME, 'size': p.DEC_NUM})
+
+    @_('NAME "[" NAME "]"')
+    def array_type(self, p):
+        return ('Array', {'type': p.NAME0, 'size': p.NAME1})
+
+    # Tuple definitions
+    @_('"(" tuple_type maybe_comma ")"')
+    def type(self, p):
+        return p.tuple_type
+
+    @_('tuple_type "," type')
+    @_('type')
+    @_('')
+    def tuple_type(self, p):
+        items = getattr(p, 'tuple_type', [])
+        type_def = getattr(p, 'type', None)
+        if type_def:
+            items += [type_def]
+        return items
+
+    # Tuple definitions
+    @_('"(" param_type ")"')
+    def type(self, p):
+        return ('Tuple', p.param_type)
+
+    @_('param_type "," type')
+    @_('type')
+    @_('')
+    def param_type(self, p):
+        items = getattr(p, 'param_type', [])
+        type_def = getattr(p, 'type', None)
+        if type_def:
+            items += [type_def]
+        return items
 
     # Dict
     @_('"{" dict_items "}"')
@@ -322,16 +433,12 @@ class _VyperParser(_Parser):
         return p[0]
 
     # Tuple
-    @_('"(" tuple_items ")"')
+    @_('"(" tuple_items maybe_comma ")"')
     def tuple(self, p):
         return ('tuple', p.tuple_items)
 
-    @_('tuple_items "," tuple_item ","')
-    @_('tuple_item ","')
-    @_('","')
     @_('tuple_items "," tuple_item')
     @_('tuple_item')
-    @_('')
     def tuple_items(self, p):
         tuple_items = getattr(p, 'tuple_items', [])
         tuple_item = getattr(p, 'tuple_item', None)
@@ -379,34 +486,34 @@ class _VyperParser(_Parser):
         return self.variable
 
     # Make a Call
-    @_('variable "(" parameters ")"')
+    @_('variable "(" arguments ")"')
     def variable(self, p):
-        return self.variable(*self.arguments)
+        return self.variable(*self.parameters)
 
-    # Call parameters
-    @_('parameters "," parameter')
-    @_('parameter')
+    # Call arguments
+    @_('arguments "," argument')
+    @_('argument')
     @_('')
-    def parameters(self, p):
-        parameters = getattr(p, 'parameters', [])
-        parameter = getattr(p, 'parameter', None)
-        if parameter:
-            parameters += [parameter]
-        return parameters
+    def arguments(self, p):
+        arguments = getattr(p, 'arguments', [])
+        argument = getattr(p, 'argument', None)
+        if argument:
+            arguments += [argument]
+        return arguments
 
     # Keyword arguments
-    @_('NAME "=" parameter')
-    def parameter(self, p):
-        return {p.NAME: p[0]}
+    @_('NAME "=" argument')
+    def argument(self, p):
+        return (p.NAME, p.argument)
 
-    # Endpoint for parameter
+    # Endpoint for argument
     @_('literal')
     @_('variable')
     @_('list')
     @_('tuple')
     @_('expr')
-    def parameter(self, p):
-        return p[0]
+    def argument(self, p):
+        return (None, p[0])
 
     # Get attribute
     @_('variable "." NAME')

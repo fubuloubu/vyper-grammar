@@ -42,7 +42,7 @@ class VyperLexer(_Lexer):
 
     # Tokens
 
-    @_('|'.join([r'"""(.|\s)*"""', r"'''(.\s)*'''"]))
+    @_('|'.join([r'"""(.|\s)*"""', r"'''(.|\s)*'''"]))
     def DOCSTR(self, t):
         # Docstrings are multiline
         self.lineno += max(t.value.count('\n'), t.value.count('\r'))
@@ -81,6 +81,14 @@ class VyperLexer(_Lexer):
     NAME['else'] = ELSE
     NAME['for'] = FOR
     NAME['in'] = IN
+    NAME['_'] = SKIP
+    NAME['pass'] = PASS
+    NAME['break'] = BREAK
+    NAME['continue'] = CONTINUE
+    NAME['log'] = LOG
+    NAME['return'] = RETURN
+    NAME['raise'] = RAISE
+    NAME['assert'] = ASSERT
     NAME['and'] = AND
     NAME['or'] = OR
     NAME['not'] = NOT
