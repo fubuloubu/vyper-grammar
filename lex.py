@@ -4,15 +4,6 @@ from sly.lex import (
     Token,
 )
 
-LITERALS = {
-    "=", ",",
-    ".", ":",
-    "@",
-    "(", ")",
-    "[", "]",
-    "{", "}",
-}
-
 # Compute column.
 #     input is the input text string
 #     token is a token instance
@@ -41,7 +32,14 @@ class VyperLexer(_Lexer):
         TAB, SPACE, NEWLINE,  # Discarded later
     }
 
-    literals = LITERALS
+    literals = {
+        "=", ",",
+        ".", ":",
+        "@",
+        "(", ")",
+        "[", "]",
+        "{", "}",
+    }
 
     # Tokens
 
