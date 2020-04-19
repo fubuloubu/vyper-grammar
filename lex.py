@@ -8,7 +8,7 @@ from sly.lex import (
 #     input is the input text string
 #     token is a token instance
 def _find_column(text, token):
-    last_cr = text.rfind('\n', 0, token.index)
+    last_cr = text.rfind("\n", 0, token.index)
     if last_cr < 0:
         last_cr = 0
     column = (token.index - last_cr) + 1
@@ -23,21 +23,22 @@ class VyperLexer(_Lexer):
         IMPORT, FROM, AS, DEF,
         IF, ELIF, ELSE, FOR, IN, ARROW,
         AND, OR, NOT, XOR, SHL, SHR,
-        POW, EQ, NE, LT, LE, GT, GE,
+        ADD, SUB, MUL, DIV, POW, MOD,
+        EQ, NE, LT, LE, GT, GE,
         SKIP, PASS, BREAK, CONTINUE,
-        LOG, RETURN, RAISE, ASSERT,
-        INDENT, DEDENT, TAB, SPACE, NEWLINE,
+        LOG, EVENT, RETURN, RAISE, ASSERT,
+        UNREACHABLE, STRUCT, INTERFACE,
+        INDENT, DEDENT,
+        TAB, SPACE, NEWLINE,
     }
 
     literals = {
-        '=', ',',
-        '.', ':',
-        '+', '-',
-        '*', '/',
-        '%', '@',
-        '(', ')',
-        '[', ']',
-        '{', '}',
+        "=", ",",
+        ".", ":",
+        "@",
+        "(", ")",
+        "[", "]",
+        "{", "}",
     }
 
     # Tokens
@@ -45,67 +46,77 @@ class VyperLexer(_Lexer):
     @_('|'.join([r'"""(.|\s)*"""', r"'''(.|\s)*'''"]))
     def DOCSTR(self, t):
         # Docstrings are multiline
-        self.lineno += max(t.value.count('\n'), t.value.count('\r'))
+        self.lineno += max(t.value.count("\n"), t.value.count("\r"))
         return t
 
     COMMENT = r"[#].*"
-    STRING = '|'.join([r'"(?!"").*"', r"'(?!'').*'"])
+    STRING = '|'.join([r'"(?!"").*"', r"'(?!"").*'"])
 
-    HEX_NUM = r'0x[\da-f]*'
-    OCT_NUM = r'0o[0-7]*'
-    BIN_NUM = r'0b[0-1]*'
-    FLOAT = r'((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))'
-    DEC_NUM = r'0|[1-9]\d*'
+    HEX_NUM = r"0x[\da-f]*"
+    OCT_NUM = r"0o[0-7]*"
+    BIN_NUM = r"0b[0-1]*"
+    FLOAT = r"((\d+\.\d*|\.\d+)(e[-+]?\d+)?|\d+(e[-+]?\d+))"
+    DEC_NUM = r"0|[1-9]\d*"
 
-    ARROW = '->'
-    POW = r'\*\*'
-    SHL = '<<'
-    SHR = '>>'
-    EQ = '=='
-    NE = '!='
-    LT = '<'
-    LE = '<='
-    GT = '>'
-    GE = '>='
+    ARROW = "->"
+    POW = "\*\*"
+    SHL = "<<"
+    SHR = ">>"
+    EQ = "=="
+    NE = "!="
+    LT = "<"
+    LE = "<="
+    GT = ">"
+    GE = ">="
 
-    NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    ADD = "\+"
+    SUB = "-"
+    MUL = "\*"
+    DIV = "/"
+    MOD = "%"
+
+    NAME = r"[a-zA-Z_][a-zA-Z0-9_]*"
     # Keywords
-    NAME['def'] = DEF
-    NAME['if'] = IF
-    NAME['else'] = ELSE
-    NAME['import'] = IMPORT
-    NAME['from'] = FROM
-    NAME['as'] = AS
-    NAME['if'] = IF
-    NAME['elif'] = ELIF
-    NAME['else'] = ELSE
-    NAME['for'] = FOR
-    NAME['in'] = IN
-    NAME['_'] = SKIP
-    NAME['pass'] = PASS
-    NAME['break'] = BREAK
-    NAME['continue'] = CONTINUE
-    NAME['log'] = LOG
-    NAME['return'] = RETURN
-    NAME['raise'] = RAISE
-    NAME['assert'] = ASSERT
-    NAME['and'] = AND
-    NAME['or'] = OR
-    NAME['not'] = NOT
-    NAME['xor'] = XOR
-    NAME['True'] = BOOL
-    NAME['False'] = BOOL
+    NAME["def"] = DEF
+    NAME["if"] = IF
+    NAME["else"] = ELSE
+    NAME["import"] = IMPORT
+    NAME["from"] = FROM
+    NAME["as"] = AS
+    NAME["if"] = IF
+    NAME["elif"] = ELIF
+    NAME["else"] = ELSE
+    NAME["for"] = FOR
+    NAME["in"] = IN
+    NAME["_"] = SKIP
+    NAME["pass"] = PASS
+    NAME["break"] = BREAK
+    NAME["continue"] = CONTINUE
+    NAME["log"] = LOG
+    NAME["return"] = RETURN
+    NAME["raise"] = RAISE
+    NAME["assert"] = ASSERT
+    NAME["and"] = AND
+    NAME["or"] = OR
+    NAME["not"] = NOT
+    NAME["xor"] = XOR
+    NAME["True"] = BOOL
+    NAME["False"] = BOOL
+    NAME["UNREACHABLE"] = UNREACHABLE
+    NAME["struct"] = STRUCT
+    NAME["event"] = EVENT
+    NAME["contract"] = INTERFACE  # TODO Change the name of this
 
-    @_(r'[\r\n]+')
+    @_(r"[\r\n]+")
     def NEWLINE(self, t):
-        self.lineno += max(t.value.count('\n'), t.value.count('\r'))
+        self.lineno += max(t.value.count("\n"), t.value.count("\r"))
         return t
 
     # Python tab-aware scoping is tricky to parse.
     # The below functionality is only here to aid in parsing whitespace for scoping.
-    @_(r' {4}|\t')
+    @_(r" {4}|\t")
     def TAB(self, t):
-        if t.value == '\t':
+        if t.value == "\t":
             self.__using_tab_char = True
         else:
             self.__using_spaces = True
@@ -119,7 +130,7 @@ class VyperLexer(_Lexer):
 
         return t
 
-    @_(r' {1,3}')
+    @_(r" {1,3}")
     def SPACE(self, t):
         # Only need this for parsing, discard later
         return t
@@ -136,11 +147,15 @@ class VyperLexer(_Lexer):
         )
 
 
-def tokenize(text):
+TOKENS = VyperLexer.tokens - {"TAB", "SPACE", "NEWLINE"}
+
+
+def indent_tracker(tokens):
     """
-    Override behavior to integrate Python indent counter
+    Filter a stream of tokens to insert INDENT and DEDENT characters
+    in place of TABs and NEWLINEs depending on the indent level of the code.
+    Also discard SPACEs.
     """
-    tokens = _peekable(VyperLexer().tokenize(text))
 
     # Python tab-aware scoping is tricky to parse.
     # The below functionality is only here to aid in parsing whitespace for scoping.
@@ -198,3 +213,12 @@ def tokenize(text):
             continue  # We don't care about spaces otherwise
         else:
             yield t  # Normal token
+
+
+def tokenize(text):
+    """
+    Override behavior to integrate various token modification filters
+    """
+    tokens = VyperLexer().tokenize(text)
+    tokens = indent_tracker(_peekable(tokens))
+    return tokens

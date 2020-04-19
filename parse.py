@@ -5,311 +5,395 @@ from lex import VyperLexer
 class _VyperParser(_Parser):
 
     def error(self, tok):
-        raise SyntaxError(f"""Could not parse line {tok.lineno}:
-
-    {tok.value}
-    """)
+        if tok:
+            raise SyntaxError(f"Could not parse line {tok.lineno}:\n\n{tok.value}\n")
+        else:
+            raise SyntaxError("Ran out of tokens!")
 
     tokens = VyperLexer.tokens - {'TAB', 'SPACE'}
     literals = VyperLexer.literals
 
     precedence = (
-       ('left', "+", "-"),
-       ('left', "*", "/"),
-       ('left', POW, "%"),
-       ('right', UMINUS, NOT),
+       ('left', ADD, SUB),
+       ('left', MUL, DIV),
+       ('left', POW, MOD),
+       ('right', USUB, NOT),
     )
 
+    ##### TOP-LEVEL MODULE #####
     start = 'module'
 
-    @_('module_items')
+    @_('''
+    [ NEWLINE ]
+    [ DOCSTR ]
+    [ NEWLINE ]
+    { import_stmt }
+    { interface_def }
+    [ NEWLINE ]
+    { struct_def }
+    [ NEWLINE ]
+    { event_def }
+    { storage_def }
+    { constant_def }
+    { function_def }
+    [ NEWLINE ]
+    ''')
     def module(self, p):
-        return ('module', p.module_items)
-
-    @_('module_items module_item')
-    @_('module_item')
-    @_('')
-    def module_items(self, p):
-        items = getattr(p, 'module_items', [])
-        # imports may return a list here
-        item = getattr(p, 'module_item', None)
-        if item:
-            items += item if isinstance(item, list) else [item]
-        return items
-
-    @_('COMMENT NEWLINE')
-    @_('NEWLINE')
-    def newline(self, p):
-        # This helper token identifies logical end of line
-        pass
-
-    @_('newline')
-    @_('')
-    def maybe_newline(self, p):
-        pass
-
-    @_('","')
-    @_('')
-    def maybe_comma(self, p):
-        pass
-
-    @_('newline')
-    def module_item(self, p):
-        pass
-
-    @_('DOCSTR')
-    def module_item(self, p):
-        return p.DOCSTR
+        return ('module', {
+            "doc": p.DOCSTR,
+            "imports": p.import_stmt,
+            "interfaces": p.interface_def,
+            "structs": p.struct_def,
+            "events": p.event_def,
+            "storage": p.storage_def,
+            "constants": p.constant_def,
+            "functions": p.function,
+        })
 
     ##### IMPORTS #####
-    @_('import_stmt')
-    def module_item(self, p):
-        return p.import_stmt
-
-    @_('IMPORT import_path maybe_alias newline')
+    @_('IMPORT import_path [ alias ] NEWLINE')
     def import_stmt(self, p):
-        return ('import', {'path': p.import_path, 'alias': p.maybe_alias})
+        return ('import', {'path': p.import_path, 'alias': p.alias})
 
-    @_('FROM base_path IMPORT NAME maybe_alias newline')
+    @_('FROM import_path IMPORT NAME [ alias ] NEWLINE')
     def import_stmt(self, p):
-        return ('import', {'path': p.base_path + [p.NAME], 'alias': p.maybe_alias})
+        return ('import', {'path': p.base_path + [p.NAME], 'alias': p.alias})
 
-    @_('FROM base_path IMPORT "*" newline')
+    @_('FROM import_path IMPORT MUL NEWLINE')
     def import_stmt(self, p):
-        return ('import', {'path': p.base_path + ['*'], 'alias': None})
+        return ('import', {'path': p.import_path + ['*'], 'alias': None})
 
-    @_('FROM base_path IMPORT "(" multiple_imports ")" newline')
+    @_('FROM import_path IMPORT "(" import_list ")" NEWLINE')
+    @_('FROM import_path IMPORT "(" INDENT import_list DEDENT ")" NEWLINE')
     def import_stmt(self, p):
         return [
-            ('import', {'path': p.base_path + [name], 'alias': alias})
-            for name, alias in p.multiple_imports
+            ('import', {'path': p.import_path + [name], 'alias': alias})
+            for name, alias in p.import_list
         ]
 
-    @_('multiple_imports NAME maybe_alias maybe_comma maybe_newline')
-    @_('NAME maybe_alias maybe_comma maybe_newline')
-    def multiple_imports(self, p):
-        items = getattr(p, 'multiple_imports', [])
-        items += [(p.NAME, p.maybe_alias)]
-        return items
+    @_('NAME [ alias ] { "," [ NEWLINE ] NAME [ alias ] } [ "," ] [ NEWLINE ]')
+    def import_list(self, p):
+        return zip([p.NAME0] + p.NAME1, [p.alias0] + p.alias1)
 
-    @_('import_path "." NAME')
-    def import_path(self, p):
-        return p.import_path + [p.NAME]
-
-    @_('"." import_path')
+    @_('"." [ import_path ]')
     def import_path(self, p):
         return ['.'] + p.import_path
 
-    @_('NAME')
+    @_('{ NAME "." } NAME')
     def import_path(self, p):
-        return [p.NAME]
+        return p.NAME0 + [p.NAME1]
 
-    @_('base_path "." NAME')
-    def base_path(self, p):
-        return p.base_path + [p.NAME]
+    @_('AS NAME')
+    def alias(self, p):
+        return p.NAME
 
-    @_('"." base_path')
-    def base_path(self, p):
-        return ['.'] + p.base_path
-
+    ##### TYPE DEFINITIONS #####
+    # Base Types
     @_('NAME')
-    def base_path(self, p):
-        return [p.NAME]
+    def type(self, p):
+        return ('Type', p.NAME)
 
-    @_('"."')
-    def base_path(self, p):
-        return ['.']
+    # Array definitions
+    @_('type "[" DEC_NUM "]"')
+    def type(self, p):
+        return ('ArrayType', {'type': p.type, 'size': p.DEC_NUM})
 
-    @_('AS NAME', '')
-    def maybe_alias(self, p):
-        return getattr(p, 'NAME', None)
+    @_('type "[" NAME "]"')
+    def type(self, p):
+        return ('ArrayType', {'type': p.type, 'size': p.NAME})
 
-    ##### FUNCTION DEFS #####
-    @_('function')
-    def module_item(self, p):
-        return p.function
+    # Tuple definitions
+    @_('"(" type { "," type } "," ")"')
+    def type(self, p):
+        return ('TupleType', {"types": [p.type0] + p.type1})
 
-    @_('decorators DEF NAME "(" parameters ")" maybe_return ":" newline maybe_docstr body')
-    def function(self, p):
-        return ('function', {
-            'decorators': p.decorators,
-            'name': p.NAME,
-            'parameters': p.parameters,
-            'returns': p.maybe_return,
-            'doc': p.maybe_docstr,
-            'body': p.body,
-        })
+    @_('"(" type "," type { "," type } ")"')
+    def type(self, p):
+        return ('TupleType', {"types": [p.type0, p.type1] + p.type2})
 
-    @_('decorators decorator')
-    @_('decorator')
-    @_('')
-    def decorators(self, p):
-        decorators = getattr(p, 'decorators', [])
-        decorator = getattr(p, 'decorator', None)
-        if decorator:
-            decorators += [decorator]
-        return decorators
+    @_('"(" "," ")"')
+    def type(self, p):
+        return ('TupleType', {"types": list()})
 
-    @_('"@" NAME newline')
-    @_('"@" NAME "(" arguments ")" newline')
-    def decorator(self, p):
-        return ('decorator', {'name': p.NAME, 'arguments': getattr(p, 'arguments', None)})
+    ##### VARIABLE DEFINITIONS #####
+    @_('NAME ":" type NEWLINE')
+    def storage_def(self, p):
+        return ('StorageDef', {"name": p.NAME, "type": p.type, "decorator": None})
 
-    @_('parameters "," maybe_newline parameter maybe_comma maybe_newline')
-    @_('maybe_newline parameter maybe_comma maybe_newline')
-    @_('')
-    def parameters(self, p):
-        parameters = getattr(p, 'parameters', [])
-        parameter = getattr(p, 'parameter', None)
-        if parameter:
-            parameters += [parameter]
-        return parameters
+    # TODO Change to an actual decorator
+    @_('NAME ":" NAME "(" type ")" NEWLINE')
+    def storage_def(self, p):
+        return ('StorageDef', {"name": p.NAME0, "type": p.type, "decorator": p.NAME1})
 
-    @_('NAME ":" type "=" variable')
+    # TODO Change to an actual decorator
+    @_('NAME ":" NAME "(" type ")" "=" expr NEWLINE')
+    def constant_def(self, p):
+        assert p.NAME1 == "constant"
+        return ('ConstantDef', {"name": p.NAME0, "type": p.type, "value": p.expr})
+
+    @_('''
+    STRUCT NAME ":" NEWLINE
+    INDENT
+        NAME ":" type
+      { NAME ":" type }
+    DEDENT
+    ''')
+    def struct_def(self, p):
+        return ('StructDef', {"members": [
+            {"name": n, "type": t} for n, t
+            in zip([p.NAME0] + p.NAME1, [p.type0] + p.type1)
+        ]})
+
+    @_('''
+    STRUCT NAME ":" NEWLINE
+    INDENT
+        PASS
+    DEDENT
+    ''')
+    def struct_def(self, p):
+        return ('StructDef', {"members": list()})
+
+    @_('''
+    INTERFACE NAME ":" NEWLINE
+    INDENT
+        function_type ":" NAME
+      { function_type ":" NAME }
+    DEDENT
+    ''')
+    def interface_def(self, p):
+        return ('InterfaceDef', {"functions": [
+            {**f, "mutability": n} for f, n
+            in zip([p.function_type0] + p.function_type1, [p.NAME0] + p.NAME1)
+        ]})
+
+    @_('STRUCT NAME ":" NEWLINE INDENT PASS DEDENT')
+    def interface_def(self, p):
+        return ('InterfaceDef', {"functions": list()})
+
+    @_('NAME ":" NAME "(" type ")"')
+    def event_member(self, p):
+        assert p.NAME1 == "indexed"
+        return {"name": p.NAME0, "indexed" : True, "type": p.type}
+
     @_('NAME ":" type')
+    def event_member(self, p):
+        return {"name": p.NAME, "indexed" : False, "type": p.type}
+
+    @_('''
+    NAME ":" EVENT "(" "{"
+      { event_member }
+    "}" ")" NEWLINE
+    ''')
+    def event_def(self, p):
+        # TODO Change this syntax to be like struct
+        return ('EventDef', {"members": p.event_member})
+
+    @_('''
+    NAME ":" EVENT "(" "{"
+    "}" ")" NEWLINE
+    ''')
+    def event_def(self, p):
+        return ('EventDef', {"members": list()})
+
+    ##### FUNCTION DEFINITIONS #####
+    @_('"@" NAME [ "(" arguments ")" ] NEWLINE')
+    def decorator(self, p):
+        return ('decorator', {'name': p.NAME, 'arguments': p.arguments})
+
+    @_('{ parameter "," [ NEWLINE ] } [ "," ] [ NEWLINE ]')
+    def parameters(self, p):
+        return p.parameter
+
+    @_('NAME ":" type [ "=" variable ]')
     def parameter(self, p):
         return ('parameter', {
             'name': p.NAME,
             'type': p.type,
-            'default_value': getattr(p, 'variable', None)
+            'default_value': p.variable,
         })
 
-    @_('ARROW NAME', '')
-    def maybe_return(self, p):
-        return getattr(p, 'NAME', None)
+    @_('ARROW NAME')
+    def returns(self, p):
+        return p.NAME
 
-    @_('DOCSTR newline')
-    @_('')
-    def maybe_docstr(self, p):
-        # TODO This doesn't work (DOCSTR in stmt catches it instead)
-        return getattr(p, 'DOCSTR', None)
+    @_('DEF NAME "(" parameters ")" [ returns ]')
+    def function_type(self, p):
+        return ('FunctionType', {
+            'name': p.NAME,
+            'parameters': p.parameters,
+            'returns': p.returns,
+        })
 
-    @_('INDENT stmts DEDENT')
+    @_('{ decorator } function_type ":" NEWLINE fn_body')
+    def function_def(self, p):
+        function = p.function_type[1]
+        function.update({
+            'decorators': p.decorator,
+            'doc': p.fn_body[0],
+            'body': p.fn_body[1],
+        })
+        return ('function', function)
+
+    @_('INDENT [ DOCSTR ] stmt { stmt } DEDENT')
+    def fn_body(self, p):
+        # Only function bodies can have docstrings inside
+        return p.DOCSTR, [p.stmt0] + p.stmt1
+
+    @_('INDENT [ DOCSTR ] PASS NEWLINE DEDENT')
+    def fn_body(self, p):
+        # Function bodies can either be a list of 1+ stmts, or PASS
+        return p.DOCSTR, []
+
+    @_('INDENT stmt { stmt } DEDENT')
     def body(self, p):
-        return p.stmts
+        # Bodies of multiline statements
+        return [p.stmt0] + p.stmt1
 
-    @_('stmts stmt')
-    @_('stmt')
-    @_('')
-    def stmts(self, p):
-        stmts = getattr(p, 'stmts', [])
-        stmt = getattr(p, 'stmt', None)
-        if stmt:
-            stmts += [stmt]
-        return stmts
+    @_('INDENT PASS NEWLINE DEDENT')
+    def body(self, p):
+        # Non-function bodies can either be a list of 1+ stmts, or PASS
+        return []
 
-    @_('DOCSTR newline')
+    ##### ASSIGNMENT STATEMENTS #####
+    @_('NAME ":" type "=" expr NEWLINE')
     def stmt(self, p):
-        return ('doc', p.DOCSTR)
+        return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.expr})
+    @_('dict')
 
-    @_('PASS newline')
+    # Object Creation Assignments
+    # Dict Object
+    @_('"{" NAME ":" expr { "," NAME ":" expr } [ "," ] "}"')
+    def dict(self, p):
+        return ('dict', {"keys": [p.NAME0] + p.NAME1, "values": [p.expr0] + p.expr1})
+
+    @_('"{" "}"')
+    def dict(self, p):
+        return ('dict', {"keys": list(), "values": list()})
+
+    @_('NAME ":" type "=" dict NEWLINE')
     def stmt(self, p):
-        pass
+        return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.dict})
 
-    @_('expr newline')
+    # List Object
+    @_('"[" expr { "," expr } [ "," ] "]"')
+    def list(self, p):
+        return ('list', {"values": [p.expr0] + p.expr1})
+
+    @_('"[" "]"')
+    def list(self, p):
+        return ('list', {"values": list()})
+
+    @_('NAME ":" type "=" list NEWLINE')
+    def stmt(self, p):
+        return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.list})
+
+    # Tuple Object
+    @_('"(" expr { "," expr } "," ")"')
+    def tuple(self, p):
+        return ('tuple', {"values": [p.expr0] + p.expr1})
+
+    @_('"(" expr "," expr { "," expr } ")"')
+    def tuple(self, p):
+        return ('tuple', {"values": [p.expr0, p.expr1] + p.expr2})
+
+    @_('"(" "," ")"')
+    def tuple(self, p):
+        return ('tuple', {"values": list()})
+
+    @_('NAME ":" type "=" tuple NEWLINE')
+    def stmt(self, p):
+        return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.tuple})
+
+    # Allow multiple assignments (and skipping)
+    @_('variable')
+    @_('SKIP')
+    def target(self, p):
+        return getattr(p, 'variable', None)
+
+    @_('target { "," target } = expr NEWLINE')
+    def stmt(self, p):
+        if p.target1:
+            target = ('tuple', [p.target0] + p.target1)
+        else:
+            target= p.target0
+        return ('assign', {'target': target, 'expr': p.expr})
+
+    # Augmented Assignment
+    @_('target ADD "=" expr NEWLINE')
+    @_('target SUB "=" expr NEWLINE')
+    @_('target MUL "=" expr NEWLINE')
+    @_('target DIV "=" expr NEWLINE')
+    @_('target POW "=" expr NEWLINE')
+    @_('target MOD "=" expr NEWLINE')
+    def stmt(self, p):
+        expr = (p[1].lower(), p.target, p.expr)
+        # Re-arrange to Assign from BinOp
+        return ('assign', {'target': p.target, 'expr': expr})
+
+    ##### NON-ASSIGNMENT STATEMENTS #####
+    @_('expr NEWLINE')
     def stmt(self, p):
         return p.expr
 
-    @_('multiple_assign = expr newline')
-    def stmt(self, p):
-        p.multiple_assign = p.expr
-
-    @_('multiple_assign "," variable')
-    @_('multiple_assign "," SKIP')
-    @_('variable')
-    @_('SKIP')
-    def multiple_assign(self, p):
-        assign_list = getattr(p, 'multiple_assign', [])
-        variable = getattr(p, 'variable', None)
-        if variable:
-            assign_list += [variable]
-        if getattr(p, 'SKIP', False):
-            assign_list += [None]
-        return assign_list
-
-    @_('variable "+" "=" expr newline')
-    @_('variable "-" "=" expr newline')
-    @_('variable "*" "=" expr newline')
-    @_('variable "/" "=" expr newline')
-    @_('variable POW "=" expr newline')
-    @_('variable "%" "=" expr newline')
-    def stmt(self, p):
-        if getattr(p, 'POW', False):
-            op = '**'
-        else:
-            op = p[1]
-        expr = (op, p.variable, p.expr)
-        # Re-arrange to BinOp
-        return ('assign', {'target': p.variable, 'expr': expr})
-
-    @_('NAME ":" type "=" expr newline')
-    def stmt(self, p):
-        return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.expr})
-
-    @_('variable "=" expr newline')
-    def stmt(self, p):
-        return ('assign', {'target': p.variable, 'expr': p.expr})
-
-    @_('BREAK newline')
+    @_('BREAK NEWLINE')
     def stmt(self, p):
         return ('break',)
 
-    @_('CONTINUE newline')
+    @_('CONTINUE NEWLINE')
     def stmt(self, p):
         return ('continue',)
 
-    @_('ASSERT expr newline')
+    @_('ASSERT expr [ "," STRING ] NEWLINE')
     def stmt(self, p):
-        return ('assert', p.expr)
+        return ('assert', p.expr, p.STRING)
 
-    @_('RAISE newline')
+    @_('ASSERT expr "," UNREACHABLE NEWLINE')
     def stmt(self, p):
-        return ('raise',)
+        return ('assert', p.expr, 'unreachable')
 
-    @_('RETURN expr newline')
+    @_('RAISE [ STRING ] NEWLINE')
+    def stmt(self, p):
+        return ('raise', p.STRING)
+
+    @_('RAISE UNREACHABLE NEWLINE')
+    def stmt(self, p):
+        return ('raise', 'unreachable')
+
+    @_('RETURN expr NEWLINE')
     def stmt(self, p):
         return ('return', p.expr)
 
-    @_('LOG NAME "(" dict ")" newline')
+    @_('LOG NAME "(" dict ")" NEWLINE')
     def stmt(self, p):
         return ('log', {'type': p.NAME, 'args': p.dict })
 
-    @_('FOR NAME IN expr ":" newline body')
+    ##### MULTILINE STATEMENTS #####
+    @_('FOR NAME IN expr ":" NEWLINE body')
     def stmt(self, p):
         return ('for', {'iter_var': p.NAME, 'iter': p.expr, 'body': p.body})
 
-    @_('IF expr ":" newline body elif_list maybe_else')
+    @_('IF expr ":" NEWLINE body elif_list [ else_clause ]')
     def stmt(self, p):
-        return ('if', [(p.expr, p.body)] + p.elif_list + p.maybe_else)
+        return ('if', [(p.expr, p.body)] + p.elif_list + [p.else_clause])
 
-    @_('elif_list ELIF expr ":" newline body')
-    @_('ELIF expr ":" newline body')
-    @_('')
+    @_('{ ELIF expr ":" NEWLINE body }')
     def elif_list(self, p):
-        items = getattr(p, 'elif_list', [])
-        cond = getattr(p, 'expr', None)
-        action = getattr(p, 'body', None)
-        if cond and action:
-            items += [(cond, action)]
-        return items
+        return list(zip(p.expr, p.body))
 
-    @_('ELSE ":" newline body')
-    @_('')
-    def maybe_else(self, p):
-        action = getattr(p, 'body', None)
-        if action:
-            return [(None, action)]
-        else:
-            return []
+    @_('ELSE ":" NEWLINE body')
+    def else_clause(self, p):
+        return (None, p.body)
 
-    # Binary Opertaions
+    ##### EXPRESSIONS #####
+
+    # Binary Operations
     # Mathematical operations
-    @_('expr "+" expr')
-    @_('expr "-" expr')
-    @_('expr "*" expr')
-    @_('expr "/" expr')
+    @_('expr ADD expr')
+    @_('expr SUB expr')
+    @_('expr MUL expr')
+    @_('expr DIV expr')
     @_('expr POW expr')
-    @_('expr "%" expr')
+    @_('expr MOD expr')
     # Logical Operations
     @_('expr AND expr')
     @_('expr OR expr')
@@ -325,17 +409,13 @@ class _VyperParser(_Parser):
     @_('expr NE expr')
     @_('expr IN expr')
     def expr(self, p):
-        if getattr(p, 'POW', False):
-            op = '**'
-        else:
-            op = p[1]
-        return (op, p.expr0, p.expr1)
+        return (p[1].lower(), p.expr0, p.expr1)
 
     # Unary Operations
-    @_('"-" expr %prec UMINUS')
+    @_('SUB expr %prec USUB')
     @_('NOT expr')
     def expr(self, p):
-        op = p[0]
+        op = 'u' + p[0].lower()
         return (op, p.expr)
 
     # Ensure wrapping in parens doesn't do anything
@@ -343,140 +423,10 @@ class _VyperParser(_Parser):
     def expr(self, p):
         return p.expr
 
-    # Endpoint of expr
+    # Endpoint of an expression
     @_('literal')
     @_('variable')
-    @_('list')
-    @_('tuple')
     def expr(self, p):
-        return p[0]
-
-    ##### Type definitions #####
-    @_('NAME')
-    def type(self, p):
-        return ('type', p.NAME)
-
-    # Array definitions
-    @_('array_type')
-    def type(self, p):
-        return p.array_type
-
-    @_('array_type "[" DEC_NUM "]"')
-    def array_type(self, p):
-        return ('Array', {'type': p.array_type, 'size': p.DEC_NUM})
-
-    @_('array_type "[" NAME "]"')
-    def array_type(self, p):
-        return ('Array', {'type': p.array_type, 'size': p.NAME})
-
-    @_('NAME "[" DEC_NUM "]"')
-    def array_type(self, p):
-        return ('Array', {'type': p.NAME, 'size': p.DEC_NUM})
-
-    @_('NAME "[" NAME "]"')
-    def array_type(self, p):
-        return ('Array', {'type': p.NAME0, 'size': p.NAME1})
-
-    # Tuple definitions
-    @_('"(" tuple_type maybe_comma ")"')
-    def type(self, p):
-        return p.tuple_type
-
-    @_('tuple_type "," type')
-    @_('type')
-    @_('')
-    def tuple_type(self, p):
-        items = getattr(p, 'tuple_type', [])
-        type_def = getattr(p, 'type', None)
-        if type_def:
-            items += [type_def]
-        return items
-
-    # Tuple definitions
-    @_('"(" param_type ")"')
-    def type(self, p):
-        return ('Tuple', p.param_type)
-
-    @_('param_type "," type')
-    @_('type')
-    @_('')
-    def param_type(self, p):
-        items = getattr(p, 'param_type', [])
-        type_def = getattr(p, 'type', None)
-        if type_def:
-            items += [type_def]
-        return items
-
-    # Dict
-    @_('"{" dict_items "}"')
-    def dict(self, p):
-        return ('dict', p.dict_items)
-
-    @_('dict_items "," NAME ":" dict_item')
-    @_('NAME ":" dict_item')
-    @_('')
-    def dict_items(self, p):
-        dict_items = getattr(p, 'dict_items', [])
-        key = getattr(p, 'NAME', None)
-        val = getattr(p, 'dict_item', None)
-        if key and val:
-            dict_items[key] = val
-        return dict_items
-
-    @_('literal')
-    @_('variable')
-    @_('list')
-    @_('tuple')
-    @_('expr')
-    @_('')
-    def dict_item(self, p):
-        return p[0]
-
-    # Tuple
-    @_('"(" tuple_items maybe_comma ")"')
-    def tuple(self, p):
-        return ('tuple', p.tuple_items)
-
-    @_('tuple_items "," tuple_item')
-    @_('tuple_item')
-    def tuple_items(self, p):
-        tuple_items = getattr(p, 'tuple_items', [])
-        tuple_item = getattr(p, 'tuple_item', None)
-        if tuple_item:
-            tuple_items += [tuple_item]
-        return tuple_items
-
-    @_('literal')
-    @_('variable')
-    @_('tuple')
-    @_('list')
-    @_('expr')
-    @_('')
-    def tuple_item(self, p):
-        return p[0]
-
-    # List
-    @_('"[" list_items "]"')
-    def list(self, p):
-        return ('list', p.list_items)
-
-    @_('list_items "," list_item')
-    @_('list_item')
-    @_('')
-    def list_items(self, p):
-        list_items = getattr(p, 'list_items', [])
-        list_item = getattr(p, 'list_item', None)
-        if list_item:
-            list_items += [list_item]
-        return list_items
-
-    @_('literal')
-    @_('variable')
-    @_('tuple')
-    @_('list')
-    @_('expr')
-    @_('')
-    def list_item(self, p):
         return p[0]
 
     ##### VARIABLES ####
@@ -486,39 +436,24 @@ class _VyperParser(_Parser):
         return self.variable
 
     # Make a Call
-    @_('variable "(" arguments ")"')
+    @_('variable "(" [ arguments ] ")"')
     def variable(self, p):
-        return self.variable(*self.parameters)
+        return ('call', {"target": p.variable, "args": p.arguments})
 
     # Call arguments
-    @_('arguments "," argument')
-    @_('argument')
-    @_('')
+    @_('argument { "," argument } [ "," ]')
     def arguments(self, p):
-        arguments = getattr(p, 'arguments', [])
-        argument = getattr(p, 'argument', None)
-        if argument:
-            arguments += [argument]
-        return arguments
+        return [p.argument0] + p.argument1
 
     # Keyword arguments
-    @_('NAME "=" argument')
+    @_('[ NAME "=" ] expr')
     def argument(self, p):
-        return (p.NAME, p.argument)
-
-    # Endpoint for argument
-    @_('literal')
-    @_('variable')
-    @_('list')
-    @_('tuple')
-    @_('expr')
-    def argument(self, p):
-        return (None, p[0])
+        return {"name": p.NAME, "value": p.expr}
 
     # Get attribute
     @_('variable "." NAME')
     def variable(self, p):
-        return getattr(self.variable, self.NAME)
+        return ("getattr", {"target": self.variable, "attribute": self.NAME})
 
     # Get item
     @_('variable "[" expr "]"')
