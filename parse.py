@@ -1,16 +1,25 @@
 from sly import Parser as _Parser
 
-from lex import VyperLexer
+from lex import VyperLexer, tokenize
 
 class _VyperParser(_Parser):
 
+    # Uncomment if you want to see the parse table
+    #debugfile = 'parser.out'
+
+    def __init__(self, text):
+        self._text = text
+        super().__init__()
+
     def error(self, tok):
         if tok:
-            raise SyntaxError(f"Could not parse line {tok.lineno}:\n\n{tok.value}\n")
+            line = self._text.splitlines()[tok.lineno]
+            raise SyntaxError(f"Could not parse line:\n\n   {line}")
         else:
             raise SyntaxError("Ran out of tokens!")
 
-    tokens = VyperLexer.tokens - {'TAB', 'SPACE'}
+    # HACK: Cannot import these from constant in lex, for whatever reason
+    tokens = VyperLexer.tokens - {'TAB', 'SPACE', 'NEWLINE'}
     literals = VyperLexer.literals
 
     precedence = (
@@ -501,5 +510,7 @@ class _VyperParser(_Parser):
         return bool(p.BOOL)
 
 
-def parse(tokens):
-    return _VyperParser().parse(tokens)
+def parse(text):
+    tokens = tokenize(text)
+    ast = _VyperParser(text).parse(tokens)
+    return ast
