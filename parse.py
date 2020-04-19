@@ -23,10 +23,19 @@ class _VyperParser(_Parser):
     literals = VyperLexer.literals
 
     precedence = (
-       ('left', ADD, SUB),
-       ('left', MUL, DIV),
-       ('left', POW, MOD),
-       ('right', USUB, NOT),
+        # These operations can be used in order e.g. 1 + 2 + 3 + ...
+        # The order is left to right evaluation
+        ('left', ADD, SUB),
+        ('left', MUL, DIV),  # Top-down is order of operations (lowest first)
+        ('left', AND, OR, XOR),
+        # These operations can be used in order e.g. -(-(-(...)))
+        # The order is right to left evaluation
+        ('right', USUB, NOT),
+        # Cannot use these operators multiple times in a row without parens
+        # e.g. 1 < 2 < 3 < ...
+        ('nonassoc', EQ, NE, LT, GT, LE, GE),
+        ('nonassoc', SHL, SHR), # Only nonassociative with those in it's group
+        ('nonassoc', POW, MOD),
     )
 
     ##### TOP-LEVEL MODULE #####
