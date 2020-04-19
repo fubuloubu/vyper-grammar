@@ -33,19 +33,14 @@ class _VyperParser(_Parser):
     start = 'module'
 
     @_('''
-    [ NEWLINE ]
-    [ DOCSTR ]
-    [ NEWLINE ]
+    [ DOCSTR ENDSTMT ]
     { import_stmt }
     { interface_def }
-    [ NEWLINE ]
     { struct_def }
-    [ NEWLINE ]
     { event_def }
     { storage_def }
     { constant_def }
     { function_def }
-    [ NEWLINE ]
     ''')
     def module(self, p):
         return ('module', {
@@ -56,41 +51,45 @@ class _VyperParser(_Parser):
             "events": p.event_def,
             "storage": p.storage_def,
             "constants": p.constant_def,
-            "functions": p.function,
+            "functions": p.function_def,
         })
 
     ##### IMPORTS #####
-    @_('IMPORT import_path [ alias ] NEWLINE')
+    @_('IMPORT import_path [ alias ] ENDSTMT')
     def import_stmt(self, p):
         return ('import', {'path': p.import_path, 'alias': p.alias})
 
-    @_('FROM import_path IMPORT NAME [ alias ] NEWLINE')
+    @_('FROM import_path IMPORT NAME [ alias ] ENDSTMT')
     def import_stmt(self, p):
-        return ('import', {'path': p.base_path + [p.NAME], 'alias': p.alias})
+        return ('import', {'path': p.import_path + [p.NAME], 'alias': p.alias})
 
-    @_('FROM import_path IMPORT MUL NEWLINE')
+    @_('FROM import_path IMPORT MUL ENDSTMT')
     def import_stmt(self, p):
         return ('import', {'path': p.import_path + ['*'], 'alias': None})
 
-    @_('FROM import_path IMPORT "(" import_list ")" NEWLINE')
-    @_('FROM import_path IMPORT "(" INDENT import_list DEDENT ")" NEWLINE')
+    @_('FROM import_path IMPORT "(" import_list ")" ENDSTMT')
+    @_('FROM import_path IMPORT "(" INDENT import_list DEDENT ")" ENDSTMT')
     def import_stmt(self, p):
         return [
             ('import', {'path': p.import_path + [name], 'alias': alias})
             for name, alias in p.import_list
         ]
 
-    @_('NAME [ alias ] { "," [ NEWLINE ] NAME [ alias ] } [ "," ] [ NEWLINE ]')
+    @_('NAME [ alias ] { "," NAME [ alias ] } [ "," ]')
     def import_list(self, p):
         return zip([p.NAME0] + p.NAME1, [p.alias0] + p.alias1)
 
-    @_('"." [ import_path ]')
+    @_('"." { "." }')
     def import_path(self, p):
-        return ['.'] + p.import_path
+        return ['.'] * len(p)
 
-    @_('{ NAME "." } NAME')
+    @_('NAME')
     def import_path(self, p):
-        return p.NAME0 + [p.NAME1]
+        return [p.NAME]
+
+    @_('import_path { "."  NAME }')
+    def import_path(self, p):
+        return p.import_path + [p.NAME]
 
     @_('AS NAME')
     def alias(self, p):
@@ -125,23 +124,23 @@ class _VyperParser(_Parser):
         return ('TupleType', {"types": list()})
 
     ##### VARIABLE DEFINITIONS #####
-    @_('NAME ":" type NEWLINE')
+    @_('NAME ":" type ENDSTMT')
     def storage_def(self, p):
         return ('StorageDef', {"name": p.NAME, "type": p.type, "decorator": None})
 
     # TODO Change to an actual decorator
-    @_('NAME ":" NAME "(" type ")" NEWLINE')
+    @_('NAME ":" NAME "(" type ")" ENDSTMT')
     def storage_def(self, p):
         return ('StorageDef', {"name": p.NAME0, "type": p.type, "decorator": p.NAME1})
 
     # TODO Change to an actual decorator
-    @_('NAME ":" NAME "(" type ")" "=" expr NEWLINE')
+    @_('NAME ":" NAME "(" type ")" "=" expr ENDSTMT')
     def constant_def(self, p):
         assert p.NAME1 == "constant"
         return ('ConstantDef', {"name": p.NAME0, "type": p.type, "value": p.expr})
 
     @_('''
-    STRUCT NAME ":" NEWLINE
+    STRUCT NAME ":"
     INDENT
         NAME ":" type
       { NAME ":" type }
@@ -154,7 +153,7 @@ class _VyperParser(_Parser):
         ]})
 
     @_('''
-    STRUCT NAME ":" NEWLINE
+    STRUCT NAME ":"
     INDENT
         PASS
     DEDENT
@@ -163,7 +162,7 @@ class _VyperParser(_Parser):
         return ('StructDef', {"members": list()})
 
     @_('''
-    INTERFACE NAME ":" NEWLINE
+    INTERFACE NAME ":"
     INDENT
         function_type ":" NAME
       { function_type ":" NAME }
@@ -175,7 +174,12 @@ class _VyperParser(_Parser):
             in zip([p.function_type0] + p.function_type1, [p.NAME0] + p.NAME1)
         ]})
 
-    @_('STRUCT NAME ":" NEWLINE INDENT PASS DEDENT')
+    @_('''
+    INTERFACE NAME ":"
+    INDENT
+        PASS
+    DEDENT
+    ''')
     def interface_def(self, p):
         return ('InterfaceDef', {"functions": list()})
 
@@ -191,7 +195,7 @@ class _VyperParser(_Parser):
     @_('''
     NAME ":" EVENT "(" "{"
       { event_member }
-    "}" ")" NEWLINE
+    "}" ")" ENDSTMT
     ''')
     def event_def(self, p):
         # TODO Change this syntax to be like struct
@@ -199,17 +203,17 @@ class _VyperParser(_Parser):
 
     @_('''
     NAME ":" EVENT "(" "{"
-    "}" ")" NEWLINE
+    "}" ")" ENDSTMT
     ''')
     def event_def(self, p):
         return ('EventDef', {"members": list()})
 
     ##### FUNCTION DEFINITIONS #####
-    @_('"@" NAME [ "(" arguments ")" ] NEWLINE')
+    @_('"@" NAME [ "(" arguments ")" ] ENDSTMT')
     def decorator(self, p):
         return ('decorator', {'name': p.NAME, 'arguments': p.arguments})
 
-    @_('{ parameter "," [ NEWLINE ] } [ "," ] [ NEWLINE ]')
+    @_('{ parameter "," } [ "," ]')
     def parameters(self, p):
         return p.parameter
 
@@ -233,38 +237,28 @@ class _VyperParser(_Parser):
             'returns': p.returns,
         })
 
-    @_('{ decorator } function_type ":" NEWLINE fn_body')
+    @_('{ decorator } function_type ":" [ DOCSTR ] body')
     def function_def(self, p):
         function = p.function_type[1]
         function.update({
             'decorators': p.decorator,
-            'doc': p.fn_body[0],
-            'body': p.fn_body[1],
+            'doc': p.DOCSTR,
+            'body': p.fn_body,
         })
         return ('function', function)
-
-    @_('INDENT [ DOCSTR ] stmt { stmt } DEDENT')
-    def fn_body(self, p):
-        # Only function bodies can have docstrings inside
-        return p.DOCSTR, [p.stmt0] + p.stmt1
-
-    @_('INDENT [ DOCSTR ] PASS NEWLINE DEDENT')
-    def fn_body(self, p):
-        # Function bodies can either be a list of 1+ stmts, or PASS
-        return p.DOCSTR, []
 
     @_('INDENT stmt { stmt } DEDENT')
     def body(self, p):
         # Bodies of multiline statements
         return [p.stmt0] + p.stmt1
 
-    @_('INDENT PASS NEWLINE DEDENT')
+    @_('INDENT PASS ENDSTMT DEDENT')
     def body(self, p):
-        # Non-function bodies can either be a list of 1+ stmts, or PASS
-        return []
+        # Bodies can either be a list of 1+ stmts, or PASS
+        return list()
 
     ##### ASSIGNMENT STATEMENTS #####
-    @_('NAME ":" type "=" expr NEWLINE')
+    @_('NAME ":" type "=" expr ENDSTMT')
     def stmt(self, p):
         return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.expr})
     @_('dict')
@@ -279,7 +273,7 @@ class _VyperParser(_Parser):
     def dict(self, p):
         return ('dict', {"keys": list(), "values": list()})
 
-    @_('NAME ":" type "=" dict NEWLINE')
+    @_('NAME ":" type "=" dict ENDSTMT')
     def stmt(self, p):
         return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.dict})
 
@@ -292,7 +286,7 @@ class _VyperParser(_Parser):
     def list(self, p):
         return ('list', {"values": list()})
 
-    @_('NAME ":" type "=" list NEWLINE')
+    @_('NAME ":" type "=" list ENDSTMT')
     def stmt(self, p):
         return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.list})
 
@@ -309,7 +303,7 @@ class _VyperParser(_Parser):
     def tuple(self, p):
         return ('tuple', {"values": list()})
 
-    @_('NAME ":" type "=" tuple NEWLINE')
+    @_('NAME ":" type "=" tuple ENDSTMT')
     def stmt(self, p):
         return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.tuple})
 
@@ -319,7 +313,7 @@ class _VyperParser(_Parser):
     def target(self, p):
         return getattr(p, 'variable', None)
 
-    @_('target { "," target } = expr NEWLINE')
+    @_('target { "," target } = expr ENDSTMT')
     def stmt(self, p):
         if p.target1:
             target = ('tuple', [p.target0] + p.target1)
@@ -328,68 +322,68 @@ class _VyperParser(_Parser):
         return ('assign', {'target': target, 'expr': p.expr})
 
     # Augmented Assignment
-    @_('target ADD "=" expr NEWLINE')
-    @_('target SUB "=" expr NEWLINE')
-    @_('target MUL "=" expr NEWLINE')
-    @_('target DIV "=" expr NEWLINE')
-    @_('target POW "=" expr NEWLINE')
-    @_('target MOD "=" expr NEWLINE')
+    @_('target ADD "=" expr ENDSTMT')
+    @_('target SUB "=" expr ENDSTMT')
+    @_('target MUL "=" expr ENDSTMT')
+    @_('target DIV "=" expr ENDSTMT')
+    @_('target POW "=" expr ENDSTMT')
+    @_('target MOD "=" expr ENDSTMT')
     def stmt(self, p):
         expr = (p[1].lower(), p.target, p.expr)
         # Re-arrange to Assign from BinOp
         return ('assign', {'target': p.target, 'expr': expr})
 
     ##### NON-ASSIGNMENT STATEMENTS #####
-    @_('expr NEWLINE')
+    @_('expr ENDSTMT')
     def stmt(self, p):
         return p.expr
 
-    @_('BREAK NEWLINE')
+    @_('BREAK ENDSTMT')
     def stmt(self, p):
         return ('break',)
 
-    @_('CONTINUE NEWLINE')
+    @_('CONTINUE ENDSTMT')
     def stmt(self, p):
         return ('continue',)
 
-    @_('ASSERT expr [ "," STRING ] NEWLINE')
+    @_('ASSERT expr [ "," STRING ] ENDSTMT')
     def stmt(self, p):
         return ('assert', p.expr, p.STRING)
 
-    @_('ASSERT expr "," UNREACHABLE NEWLINE')
+    @_('ASSERT expr "," UNREACHABLE ENDSTMT')
     def stmt(self, p):
         return ('assert', p.expr, 'unreachable')
 
-    @_('RAISE [ STRING ] NEWLINE')
+    @_('RAISE [ STRING ] ENDSTMT')
     def stmt(self, p):
         return ('raise', p.STRING)
 
-    @_('RAISE UNREACHABLE NEWLINE')
+    @_('RAISE UNREACHABLE ENDSTMT')
     def stmt(self, p):
         return ('raise', 'unreachable')
 
-    @_('RETURN expr NEWLINE')
+    @_('RETURN expr ENDSTMT')
     def stmt(self, p):
         return ('return', p.expr)
 
-    @_('LOG NAME "(" dict ")" NEWLINE')
+    @_('LOG NAME "(" dict ")" ENDSTMT')
     def stmt(self, p):
         return ('log', {'type': p.NAME, 'args': p.dict })
 
     ##### MULTILINE STATEMENTS #####
-    @_('FOR NAME IN expr ":" NEWLINE body')
+    @_('FOR NAME IN expr ":" body')
     def stmt(self, p):
         return ('for', {'iter_var': p.NAME, 'iter': p.expr, 'body': p.body})
 
-    @_('IF expr ":" NEWLINE body elif_list [ else_clause ]')
+    @_('IF expr ":" body elif_list [ else_clause ]')
     def stmt(self, p):
         return ('if', [(p.expr, p.body)] + p.elif_list + [p.else_clause])
 
-    @_('{ ELIF expr ":" NEWLINE body }')
+    @_('{ ELIF expr ":" body }')
     def elif_list(self, p):
         return list(zip(p.expr, p.body))
 
-    @_('ELSE ":" NEWLINE body')
+    @_('ELSE ":" body')
     def else_clause(self, p):
         return (None, p.body)
 
