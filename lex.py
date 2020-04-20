@@ -392,7 +392,8 @@ def tokenize(text):
 
     # Ignore newlines that occur after actual ENDSTMT tokens (e.g. ";")
     # and commas (e.g. multi-line comma-separated values)
-    tokens = skip_after(tokens, "NEWLINE", ("ENDSTMT", ","))
+    # Ignore newlines after DOCSTR because it screws with function body docstrings
+    tokens = skip_after(tokens, "NEWLINE", ("ENDSTMT", ",", "DOCSTR"))
 
     # Turn all the NEWLINES into ENDSTMTS, as we no longer need them present
     tokens = substitute(tokens, "NEWLINE", "ENDSTMT")
