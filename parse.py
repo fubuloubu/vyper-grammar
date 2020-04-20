@@ -143,11 +143,11 @@ class _VyperParser(_Parser):
     # Array definitions
     @_('type "[" DEC_NUM "]"')
     def type(self, p):
-        return ('ArrayType', {'type': p.type, 'size': p.DEC_NUM})
+        return ('ArrayType', {'type': p.type, 'size': p.DEC_NUM, 'len': p.DEC_NUM})
 
     @_('type "[" NAME "]"')
     def type(self, p):
-        return ('ArrayType', {'type': p.type, 'size': p.NAME})
+        return ('ArrayType', {'type': p.type, 'size': p.NAME, 'len': p.NAME})
 
     # Tuple definitions
     @_('"(" type { "," type } "," ")"')
