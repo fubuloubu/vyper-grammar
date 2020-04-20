@@ -118,10 +118,6 @@ class _VyperParser(_Parser):
     def import_from(self, p):
         return ["."] * (len(p) - 2) + p.import_path
 
-    @_('INDENT import_list DEDENT')
-    def import_list(self, p):
-        return self.import_list
-
     @_('NAME [ import_alias ] { "," NAME [ import_alias ] } [ "," ]')
     def import_list(self, p):
         return zip([p.NAME0] + p.NAME1, [p.import_alias0] + p.import_alias1)
