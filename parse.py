@@ -41,27 +41,54 @@ class _VyperParser(_Parser):
     ##### TOP-LEVEL MODULE #####
     start = 'module'
 
-    @_('''
-    [ DOCSTR ENDSTMT ]
-    { import_stmt }
-    { interface_def }
-    { struct_def }
-    { event_def }
-    { storage_def }
-    { constant_def }
-    { function_def }
-    ''')
+    @_(
+    '[ DOCSTR ENDSTMT ] '
+    'imports '
+    'interfaces '
+    'structs '
+    'events '
+    'storage '
+    'constants '
+    'functions')
     def module(self, p):
-        return ('module', {
+        return ('Module', {
             "doc": p.DOCSTR,
-            "imports": p.import_stmt,
-            "interfaces": p.interface_def,
-            "structs": p.struct_def,
-            "events": p.event_def,
-            "storage": p.storage_def,
-            "constants": p.constant_def,
-            "functions": p.function_def,
+            "imports": p.imports,
+            "interfaces": p.interfaces,
+            "structs": p.structs,
+            "events": p.events,
+            "storage": p.storage,
+            "constants": p.constants,
+            "functions": p.functions,
         })
+
+    @_('{ import_stmt }')
+    def imports(self, p):
+        return p.import_stmt
+
+    @_('{ interface_def }')
+    def interfaces(self, p):
+        return p.interface_def
+
+    @_('{ struct_def }')
+    def structs(self, p):
+        return p.struct_def
+
+    @_('{ event_def }')
+    def events(self, p):
+        return p.event_def
+
+    @_('{ storage_def }')
+    def storage(self, p):
+        return p.storage_def
+
+    @_('{ constant_def }')
+    def constants(self, p):
+        return p.constant_def
+
+    @_('{ function_def }')
+    def functions(self, p):
+        return p.function_def
 
     ##### IMPORTS #####
     @_('IMPORT import_path [ alias ] ENDSTMT')
