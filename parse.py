@@ -41,54 +41,50 @@ class _VyperParser(_Parser):
     ##### TOP-LEVEL MODULE #####
     start = 'module'
 
-    @_(
-    '[ DOCSTR ENDSTMT ] '
-    'imports '
-    'interfaces '
-    'structs '
-    'events '
-    'storage '
-    'constants '
-    'functions')
+    @_('[ DOCSTR ] { module_stmt }')
     def module(self, p):
-        return ('Module', {
+        module = {
             "doc": p.DOCSTR,
-            "imports": p.imports,
-            "interfaces": p.interfaces,
-            "structs": p.structs,
-            "events": p.events,
-            "storage": p.storage,
-            "constants": p.constants,
-            "functions": p.functions,
-        })
+            "imports": list(),
+            "interfaces": list(),
+            "structs": list(),
+            "events": list(),
+            "storage": list(),
+            "constants": list(),
+            "functions": list(),
+        }
+        for stmt in p.module_stmt:
+            for k, v in stmt.items():
+                module[k].append(v)
+        return ('Module', module)
 
-    @_('{ import_stmt }')
-    def imports(self, p):
-        return p.import_stmt
+    @_('import_stmt')
+    def module_stmt(self, p):
+        return {"import": p.import_stmt}
 
-    @_('{ interface_def }')
-    def interfaces(self, p):
-        return p.interface_def
+    @_('interface_def')
+    def module_stmt(self, p):
+        return {"interface": p.interface_def}
 
-    @_('{ struct_def }')
-    def structs(self, p):
-        return p.struct_def
+    @_('struct_def')
+    def module_stmt(self, p):
+        return {"struct": p.struct_def}
 
-    @_('{ event_def }')
-    def events(self, p):
-        return p.event_def
+    @_('event_def')
+    def module_stmt(self, p):
+        return {"event": p.event_def}
 
-    @_('{ storage_def }')
-    def storage(self, p):
-        return p.storage_def
+    @_('storage_def')
+    def module_stmt(self, p):
+        return {"storage": p.storage_def}
 
-    @_('{ constant_def }')
-    def constants(self, p):
-        return p.constant_def
+    @_('constant_def')
+    def module_stmt(self, p):
+        return {"constant": p.constant_def}
 
-    @_('{ function_def }')
-    def functions(self, p):
-        return p.function_def
+    @_('function_def')
+    def module_stmt(self, p):
+        return {"function": p.function_def}
 
     ##### IMPORTS #####
     @_('IMPORT { "." } import_path [ import_alias ] ENDSTMT')
