@@ -91,44 +91,47 @@ class _VyperParser(_Parser):
         return p.function_def
 
     ##### IMPORTS #####
-    @_('IMPORT import_path [ alias ] ENDSTMT')
+    @_('IMPORT { "." } import_path [ import_alias ] ENDSTMT')
     def import_stmt(self, p):
-        return ('import', {'path': p.import_path, 'alias': p.alias})
+        return ('import', {'path': ["."] * (len(p) - 4) + p.import_path, 'alias': p.import_alias})
 
-    @_('FROM import_path IMPORT NAME [ alias ] ENDSTMT')
+    @_('import_from IMPORT MUL ENDSTMT')
     def import_stmt(self, p):
-        return ('import', {'path': p.import_path + [p.NAME], 'alias': p.alias})
+        return ('import', {'path': p.import_from + ['*'], 'alias': None})
 
-    @_('FROM import_path IMPORT MUL ENDSTMT')
+    @_('import_from IMPORT NAME [ import_alias ] ENDSTMT')
     def import_stmt(self, p):
-        return ('import', {'path': p.import_path + ['*'], 'alias': None})
+        return ('import', {'path': p.import_from + [p.NAME], 'alias': p.import_alias})
 
-    @_('FROM import_path IMPORT "(" import_list ")" ENDSTMT')
-    @_('FROM import_path IMPORT "(" INDENT import_list DEDENT ")" ENDSTMT')
+    @_('import_from IMPORT "(" import_list ")" ENDSTMT')
     def import_stmt(self, p):
         return [
-            ('import', {'path': p.import_path + [name], 'alias': alias})
+            ('import', {'path': p.import_from + [name], 'alias': alias})
             for name, alias in p.import_list
         ]
 
-    @_('NAME [ alias ] { "," NAME [ alias ] } [ "," ]')
+    @_('FROM "." { "." }')
+    def import_from(self, p):
+        return ["."] * (len(p) - 1)
+
+    @_('FROM { "." } import_path')
+    def import_from(self, p):
+        return ["."] * (len(p) - 2) + p.import_path
+
+    @_('INDENT import_list DEDENT')
     def import_list(self, p):
-        return zip([p.NAME0] + p.NAME1, [p.alias0] + p.alias1)
+        return self.import_list
 
-    @_('"." { "." }')
-    def import_path(self, p):
-        return ['.'] * len(p)
+    @_('NAME [ import_alias ] { "," NAME [ import_alias ] } [ "," ]')
+    def import_list(self, p):
+        return zip([p.NAME0] + p.NAME1, [p.import_alias0] + p.import_alias1)
 
-    @_('NAME')
+    @_('NAME { "." NAME }')
     def import_path(self, p):
-        return [p.NAME]
-
-    @_('import_path { "."  NAME }')
-    def import_path(self, p):
-        return p.import_path + [p.NAME]
+        return [p.NAME0] + p.NAME1
 
     @_('AS NAME')
-    def alias(self, p):
+    def import_alias(self, p):
         return p.NAME
 
     ##### TYPE DEFINITIONS #####
