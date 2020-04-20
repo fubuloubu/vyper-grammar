@@ -186,7 +186,7 @@ def indent_tracker(tokens):
                     # detection of TAB -> NEWLINE below to skip
                     # yielding a token
                     if tokens.peek().type == 'NEWLINE':
-                        lvl = 0
+                        lvl = indent_level
                         break
 
                     # If we have 1+ spaces after a tab, it's a problem
