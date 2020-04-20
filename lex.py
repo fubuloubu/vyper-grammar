@@ -235,6 +235,43 @@ def indent_tracker(tokens):
             yield t  # Normal token
 
 
+def collapse_unnecessary_multiline(tokens):
+    """
+    Filter a stream of tokens for instances where a unnecessary INDENT-DEDENT pair occurs
+    and remove it. It is considered "unnecessary" if a ":" doesn't preceed the INDENT.
+    Throws if it finds two INDENTs in a row under these conditions, because it was not
+    inteded to handle that.
+    """
+    # Need a peekable iterator
+    tokens = _peekable(tokens)
+
+    for t in tokens:
+
+        try:
+            next_t = tokens.peek()
+        except StopIteration as e:
+            yield t  # Yield the last token no matter what
+            break
+
+        if t.type != ":" and next_t.type == "INDENT":
+            # We will yield the token in the while loop, it's fine
+            next(tokens)  # Skip the INDENT
+            assert t.type != "DEDENT"  # DEDENT should never be followed by INDENT
+            while t.type != "DEDENT":  # Look for the next DEDENT
+                yield t
+                try:
+                    t = next(tokens)
+                except StopIteration as e:
+                    raise SyntaxError(f"No corresponding DEDENT for INDENT: {next_t}") from e
+
+                if t.type == "INDENT":
+                    raise SyntaxError(f"Cannot further indent here: {t}")
+            # t is "DEDENT" and we want to skip it, so skip it
+            continue  # This will fail to yield t
+        else:
+            yield t
+
+
 def remove_double(tokens, token_type):
     """
     Filter a stream of tokens for instances of >1 TOKENs in a row,
@@ -342,6 +379,13 @@ def tokenize(text):
 
     # Do our indent algorithm, returning a stream without contextual whitespace
     tokens = indent_tracker(tokens)
+
+    # We allow users to make certain definitions into multiline defs
+    # e.g. a = ( NEWLINE INDENT 1, NEWLINE 2, NEWLINE 3, NEWLINE DEDENT )
+    # But the parser doesn't need to know about them, so remove the INDENT/DEDENT pairs
+    # NOTE: The indent_tracker already removes the NEWLINEs
+    # NOTE: Keep trailing commas because tuples require them sometimes
+    tokens = collapse_unnecessary_multiline(tokens)
 
     # We don't need a program that starts with a newline
     tokens = skip_begin(tokens, "NEWLINE")
