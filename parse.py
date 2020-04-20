@@ -15,7 +15,7 @@ class _VyperParser(_Parser):
         if tok:
             line = self._text.splitlines()[tok.lineno]
             raise SyntaxError(f"Could not parse line:\n\n   {line}")
-        else:
+        else:  # End of file
             raise SyntaxError("Ran out of tokens!")
 
     # HACK: Cannot import these from constant in lex, for whatever reason
@@ -23,13 +23,13 @@ class _VyperParser(_Parser):
     literals = VyperLexer.literals
 
     precedence = (
-        # These operations can be used in order e.g. 1 + 2 + 3 + ...
-        # The order is left to right evaluation
+        # These operations can be used in a series e.g. 1 + 2 + 3 + 4
+        # The evaluation order is left to right evaluation e.g. (...((a + b) + c) + ...
         ('left', ADD, SUB),
         ('left', MUL, DIV),  # Top-down is order of operations (lowest first)
         ('left', AND, OR, XOR),
-        # These operations can be used in order e.g. -(-(-(...)))
-        # The order is right to left evaluation
+        # These operations can be used in series e.g. not not not True
+        # The evaluation order is right to left evaluation e.g. -(-(-(a)))
         ('right', USUB, NOT),
         # Cannot use these operators multiple times in a row without parens
         # e.g. 1 < 2 < 3 < ...
