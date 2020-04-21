@@ -350,23 +350,23 @@ class _VyperParser(_Parser):
 
     @_('target { "," target } = expr ENDSTMT')
     def stmt(self, p):
-        if p.target1:
+        if len(p.target1) > 0:
             target = ('tuple', [p.target0] + p.target1)
         else:
-            target= p.target0
+            target = p.target0
         return ('assign', {'target': target, 'expr': p.expr})
 
     # Augmented Assignment
-    @_('target ADD "=" expr ENDSTMT')
-    @_('target SUB "=" expr ENDSTMT')
-    @_('target MUL "=" expr ENDSTMT')
-    @_('target DIV "=" expr ENDSTMT')
-    @_('target POW "=" expr ENDSTMT')
-    @_('target MOD "=" expr ENDSTMT')
+    @_('variable ADD "=" expr ENDSTMT')
+    @_('variable SUB "=" expr ENDSTMT')
+    @_('variable MUL "=" expr ENDSTMT')
+    @_('variable DIV "=" expr ENDSTMT')
+    @_('variable POW "=" expr ENDSTMT')
+    @_('variable MOD "=" expr ENDSTMT')
     def stmt(self, p):
-        expr = (p[1].lower(), p.target, p.expr)
+        expr = (p[1].lower(), p.variable, p.expr)
         # Re-arrange to Assign from BinOp
-        return ('assign', {'target': p.target, 'expr': expr})
+        return ('assign', {'target': p.variable, 'expr': expr})
 
     ##### NON-ASSIGNMENT STATEMENTS #####
     @_('expr ENDSTMT')
