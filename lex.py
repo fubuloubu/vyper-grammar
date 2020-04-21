@@ -20,7 +20,7 @@ class VyperLexer(_Lexer):
         NAME, STRING, DOCSTR,
         DEC_NUM, HEX_NUM, OCT_NUM,
         BIN_NUM, FLOAT, BOOL,
-        IMPORT, FROM, AS, DEF,
+        IMPORT, FROM, DOT, AS, DEF,
         IF, ELIF, ELSE, FOR, IN, ARROW,
         AND, OR, NOT, XOR, SHL, SHR,
         ADD, SUB, MUL, DIV, POW, MOD,
@@ -28,14 +28,13 @@ class VyperLexer(_Lexer):
         SKIP, PASS, BREAK, CONTINUE,
         LOG, EVENT, RETURN, RAISE, ASSERT,
         UNREACHABLE, STRUCT, INTERFACE,
-        INDENT, DEDENT, ENDSTMT,
-        TAB, SPACE, NEWLINE,  # Discarded later
+        INDENT, DEDENT, ENDSTMT,  # Added during post-processing
+        TAB, SPACE, NEWLINE,  # Discarded after post-processing
     }
 
     literals = {
         "=", ",",
-        ".", ":",
-        "@",
+        ":", "@",
         "(", ")",
         "[", "]",
         "{", "}",
@@ -74,6 +73,7 @@ class VyperLexer(_Lexer):
     DIV = "/"
     MOD = "%"
 
+    DOT = r"\."
     ENDSTMT = ";"  # Can either separate lines via this, or with a newline
 
     NAME = r"[a-zA-Z_][a-zA-Z0-9_]*"

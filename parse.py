@@ -63,9 +63,9 @@ class _VyperParser(_Parser):
     def module_stmt(self, p):
         return {"import": p.import_stmt}
 
-    @_('IMPORT { "." } import_path [ import_alias ] ENDSTMT')
+    @_('IMPORT { DOT } import_path [ import_alias ] ENDSTMT')
     def import_stmt(self, p):
-        return ('import', {'path': ["."] * (len(p) - 4) + p.import_path, 'alias': p.import_alias})
+        return ('import', {'path': p.DOT + p.import_path, 'alias': p.import_alias})
 
     @_('import_from IMPORT MUL ENDSTMT')
     def import_stmt(self, p):
@@ -82,19 +82,19 @@ class _VyperParser(_Parser):
             for name, alias in p.import_list
         ]
 
-    @_('FROM "." { "." }')
+    @_('FROM DOT { DOT }')
     def import_from(self, p):
-        return ["."] * (len(p) - 1)
+        return [p.DOT0] + p.DOT1
 
-    @_('FROM { "." } import_path')
+    @_('FROM { DOT } import_path')
     def import_from(self, p):
-        return ["."] * (len(p) - 2) + p.import_path
+        return p.DOT
 
     @_('NAME [ import_alias ] { "," NAME [ import_alias ] } [ "," ]')
     def import_list(self, p):
         return zip([p.NAME0] + p.NAME1, [p.import_alias0] + p.import_alias1)
 
-    @_('NAME { "." NAME }')
+    @_('NAME { DOT NAME }')
     def import_path(self, p):
         return [p.NAME0] + p.NAME1
 
@@ -489,7 +489,7 @@ class _VyperParser(_Parser):
         return {"name": p.NAME, "value": p.expr}
 
     # Get attribute
-    @_('variable "." NAME')
+    @_('variable DOT NAME')
     def variable(self, p):
         return ("getattr", {"target": self.variable, "attribute": self.NAME})
 
