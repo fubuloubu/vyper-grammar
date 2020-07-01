@@ -1,3 +1,5 @@
+from itertools import tee
+
 from sly import Parser as _Parser
 
 from lex import VyperLexer, tokenize
@@ -31,7 +33,7 @@ class _VyperParser(_Parser):
                     )
                 ]
             )
-            raise SyntaxError("\n\n" + "\n".join(lines))
+            raise SyntaxError("\n\n" + "\n".join(lines)) from None
         else:  # End of file
             raise SyntaxError("Reached end of program, but expecting more tokens!")
 
@@ -335,7 +337,7 @@ class _VyperParser(_Parser):
     def function_def(self, p):
         function = p.function_type
         function.update({"decorators": p.decorator, "doc": p.DOCSTR, "body": p.body})
-        return ("Function", function)
+        return ("FunctionDef", function)
 
     @_("INDENT stmt { stmt } DEDENT")
     def body(self, p):
@@ -593,7 +595,10 @@ class _VyperParser(_Parser):
         return bool(p.BOOL)
 
 
-def parse(text):
+def parse(text, display_tokens=False):
     tokens = tokenize(text)
+    if display_tokens:
+        display, tokens = tee(tokens)
+        print(list(display))
     ast = _VyperParser(text).parse(tokens)
     return ast
