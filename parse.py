@@ -9,8 +9,9 @@ class _VyperParser(_Parser):
     debugfile = "parser.out"
 
     def __init__(self, text):
-        self._text = text
         super().__init__()
+        # Save this so we can do source code annotation
+        self._text = text
 
     def error(self, tok):
         if tok:
@@ -42,7 +43,7 @@ class _VyperParser(_Parser):
     )
 
     ##### TOP-LEVEL MODULE #####
-    start = "module_stmt"
+    start = "module"
 
     @_("[ DOCSTR ] { module_stmt }")
     def module(self, p):
@@ -59,6 +60,7 @@ class _VyperParser(_Parser):
         for stmt in p.module_stmt:
             for k, v in stmt.items():
                 module[k].append(v)
+
         return ("Module", module)
 
     ##### IMPORTS #####
@@ -110,32 +112,45 @@ class _VyperParser(_Parser):
         return p.NAME
 
     ##### TYPE DEFINITIONS #####
+    @_("base_type")
+    @_("array_type")
+    @_("tuple_type")
+    @_("mapping_type")
+    def type(self, p):
+        return p[0]
+
     # Base Types
     @_("NAME")
-    def type(self, p):
-        return ("Type", p.NAME)
+    def base_type(self, p):
+        return ("BaseType", p.NAME)
 
     # Array definitions
     @_('type "[" DEC_NUM "]"')
-    def type(self, p):
+    def array_type(self, p):
         return ("ArrayType", {"type": p.type, "size": p.DEC_NUM, "len": p.DEC_NUM})
 
     @_('type "[" NAME "]"')
-    def type(self, p):
+    def array_type(self, p):
         return ("ArrayType", {"type": p.type, "size": p.NAME, "len": p.NAME})
 
     # Tuple definitions
     @_('"(" type { "," type } "," ")"')
-    def type(self, p):
+    def tuple_type(self, p):
         return ("TupleType", {"types": [p.type0] + p.type1})
 
     @_('"(" type "," type { "," type } ")"')
-    def type(self, p):
+    def tuple_type(self, p):
         return ("TupleType", {"types": [p.type0, p.type1] + p.type2})
 
     @_('"(" "," ")"')
-    def type(self, p):
+    def tuple_type(self, p):
         return ("TupleType", {"types": list()})
+
+    # Mapping definitions
+    @_('NAME "[" base_type "," type "]"')
+    def mapping_type(self, p):
+        assert p.NAME == "HashMap"
+        return ("MappingType", {"key_type": p.base_type0, "val_type": p.type})
 
     ##### VARIABLE DEFINITIONS #####
     @_("storage_def")
@@ -243,19 +258,22 @@ class _VyperParser(_Parser):
 
     @_(
         """
-    NAME ":" EVENT "(" "{"
+    EVENT NAME ":"
+    INDENT
+        event_member
       { event_member }
-    "}" ")" ENDSTMT
+    DEDENT
     """
     )
     def event_def(self, p):
-        # TODO Change this syntax to be like struct
-        return ("EventDef", {"members": p.event_member})
+        return ("EventDef", {"members": [p.event_member0] + p.event_member1})
 
     @_(
         """
-    NAME ":" EVENT "(" "{"
-    "}" ")" ENDSTMT
+    EVENT NAME ":"
+    INDENT
+        PASS
+    DEDENT
     """
     )
     def event_def(self, p):
