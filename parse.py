@@ -15,10 +15,28 @@ class _VyperParser(_Parser):
 
     def error(self, tok):
         if tok:
-            line = self._text.splitlines()[tok.lineno]
-            raise SyntaxError(f"Could not parse line:\n\n   {line}")
+            lines = self._text.splitlines()
+            line_lens = [len(l) for l in lines]
+            linenos = list(
+                range(max(0, tok.lineno - 3), min(len(lines), tok.lineno + 3))
+            )
+            import pdb
+
+            pdb.set_trace()
+            lines = (
+                [f"{n}  {l}" for n, l in zip(linenos, lines[linenos[0] : tok.lineno])]
+                + ["-" * (5 + tok.colno) + "^"]
+                + [
+                    f"{n}  {l}"
+                    for n, l in zip(
+                        linenos[tok.lineno - linenos[0] :],
+                        lines[tok.lineno : linenos[-1]],
+                    )
+                ]
+            )
+            raise SyntaxError("\n\n" + "\n\n  " + "\n  ".join(lines))
         else:  # End of file
-            raise SyntaxError("Ran out of tokens!")
+            raise SyntaxError("Reached end of program, but expecting more tokens!")
 
     # HACK: Cannot import these from constant in lex, for whatever reason
     tokens = VyperLexer.tokens - {"TAB", "SPACE", "NEWLINE"}
@@ -59,7 +77,7 @@ class _VyperParser(_Parser):
         }
         for stmt in p.module_stmt:
             for k, v in stmt.items():
-                module[k].append(v)
+                module[k.lower() + "s"].append(v)
 
         return ("Module", module)
 
@@ -314,18 +332,13 @@ class _VyperParser(_Parser):
 
     @_('DEF NAME "(" parameters ")" [ returns ]')
     def function_type(self, p):
-        return (
-            "FunctionType",
-            {"name": p.NAME, "parameters": p.parameters, "returns": p.returns,},
-        )
+        return {"name": p.NAME, "parameters": p.parameters, "returns": p.returns}
 
     @_('{ decorator } function_type ":" [ DOCSTR ] body')
     def function_def(self, p):
-        function = p.function_type[1]
-        function.update(
-            {"decorators": p.decorator, "doc": p.DOCSTR, "body": p.fn_body,}
-        )
-        return ("function", function)
+        function = p.function_type
+        function.update({"decorators": p.decorator, "doc": p.DOCSTR, "body": p.body})
+        return ("Function", function)
 
     @_("INDENT stmt { stmt } DEDENT")
     def body(self, p):
@@ -441,7 +454,7 @@ class _VyperParser(_Parser):
     def stmt(self, p):
         return ("raise", "unreachable")
 
-    @_("RETURN expr ENDSTMT")
+    @_("RETURN [ expr ] ENDSTMT")
     def stmt(self, p):
         return ("return", p.expr)
 
