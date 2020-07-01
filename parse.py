@@ -585,9 +585,5 @@ class _VyperParser(_Parser):
 
 def parse(text):
     tokens = tokenize(text)
-    from itertools import tee
-
-    display, tokens = tee(tokens)
-    print(list(tokens))
     ast = _VyperParser(text).parse(tokens)
     return ast
