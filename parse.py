@@ -20,21 +20,18 @@ class _VyperParser(_Parser):
             linenos = list(
                 range(max(0, tok.lineno - 3), min(len(lines), tok.lineno + 3))
             )
-            import pdb
-
-            pdb.set_trace()
             lines = (
-                [f"{n}  {l}" for n, l in zip(linenos, lines[linenos[0] : tok.lineno])]
+                [f"  {n}  {l}" for n, l in zip(linenos, lines[linenos[0] : tok.lineno])]
                 + ["-" * (5 + tok.colno) + "^"]
                 + [
-                    f"{n}  {l}"
+                    f"  {n}  {l}"
                     for n, l in zip(
                         linenos[tok.lineno - linenos[0] :],
                         lines[tok.lineno : linenos[-1]],
                     )
                 ]
             )
-            raise SyntaxError("\n\n" + "\n\n  " + "\n  ".join(lines))
+            raise SyntaxError("\n\n" + "\n".join(lines))
         else:  # End of file
             raise SyntaxError("Reached end of program, but expecting more tokens!")
 

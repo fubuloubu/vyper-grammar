@@ -1,8 +1,16 @@
 from more_itertools import peekable as _peekable
 from sly.lex import (
     Lexer as _Lexer,
-    Token,
+    Token as _Token,
 )
+
+
+class VyperToken(_Token):
+    __slots__ = _Token.__slots__ + ("colno",)
+
+    def __init__(self):
+        super().__init__()
+        self.colno = 0
 
 
 # Compute column.
@@ -216,6 +224,17 @@ class VyperLexer(_Lexer):
 TOKENS = VyperLexer.tokens - {"TAB", "SPACE", "NEWLINE"}
 
 
+def annotate_columns(text, tokens):
+    for token in tokens:
+        vy_token = VyperToken()
+        vy_token.type = token.type
+        vy_token.value = token.value
+        vy_token.index = token.index
+        vy_token.lineno = token.lineno
+        vy_token.colno = _find_column(text, token)
+        yield vy_token
+
+
 def indent_tracker(tokens):
     """
     Filter a stream of tokens to insert INDENT and DEDENT characters
@@ -271,7 +290,7 @@ def indent_tracker(tokens):
             # Less indent than current indent level (discard the newline)
             elif lvl < indent_level:
                 yield t  # We want the newline
-                dedent = Token()  # Create a new token from the last one
+                dedent = VyperToken()  # Create a new token from the last one
                 dedent.type = "DEDENT"  # Change TAB to DEDENT
                 dedent.value = t.value
                 dedent.index = t.index
@@ -415,7 +434,7 @@ def substitute(tokens, token_type, substitute_type):
     for t in tokens:
 
         if t.type == token_type:
-            substitute = Token()
+            substitute = VyperToken()
             substitute.type = substitute_type
             substitute.value = t.value
             substitute.index = t.index
@@ -450,6 +469,9 @@ def tokenize(text):
     Override behavior to integrate various token modification filters
     """
     tokens = VyperLexer().tokenize(text)
+
+    # Add colno to all tokens
+    tokens = annotate_columns(text, tokens)
 
     # Since we are ignoring comments above, we have instances
     # where there are >1 comments in a row, which messes with
