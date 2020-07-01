@@ -5,7 +5,7 @@ from lex import VyperLexer, tokenize
 class _VyperParser(_Parser):
 
     # Uncomment if you want to see the parse table
-    #debugfile = 'parser.out'
+    debugfile = 'parser.out'
 
     def __init__(self, text):
         self._text = text
@@ -33,13 +33,15 @@ class _VyperParser(_Parser):
         ('right', USUB, NOT),
         # Cannot use these operators multiple times in a row without parens
         # e.g. 1 < 2 < 3 < ...
-        ('nonassoc', EQ, NE, LT, GT, LE, GE),
+        ('nonassoc', EQ, NE, LT, GT, LE, GE, IN),
         ('nonassoc', SHL, SHR), # Only nonassociative with those in it's group
         ('nonassoc', POW, MOD),
+        ('nonassoc', AUGADD, AUGSUB, AUGMUL, AUGDIV, AUGPOW, AUGMOD),
+        ('nonassoc', DOT),
     )
 
     ##### TOP-LEVEL MODULE #####
-    start = 'module'
+    start = 'module_stmt'
 
     @_('[ DOCSTR ] { module_stmt }')
     def module(self, p):
@@ -90,9 +92,13 @@ class _VyperParser(_Parser):
     def import_from(self, p):
         return p.DOT
 
-    @_('NAME [ import_alias ] { "," NAME [ import_alias ] } [ "," ]')
+    @_('import_list_item { "," import_list_item }')
     def import_list(self, p):
-        return zip([p.NAME0] + p.NAME1, [p.import_alias0] + p.import_alias1)
+        return [p.import_list_item0] + p.import_list_item1
+
+    @_('NAME [ import_alias ]')
+    def import_list_item(self, p):
+        return (p.NAME, p.import_alias)
 
     @_('NAME { DOT NAME }')
     def import_path(self, p):
@@ -248,7 +254,7 @@ class _VyperParser(_Parser):
     def decorator(self, p):
         return ('decorator', {'name': p.NAME, 'arguments': p.arguments})
 
-    @_('{ parameter "," } [ "," ]')
+    @_('{ parameter "," }')
     def parameters(self, p):
         return p.parameter
 
@@ -296,11 +302,10 @@ class _VyperParser(_Parser):
     @_('NAME ":" type "=" expr ENDSTMT')
     def stmt(self, p):
         return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.expr})
-    @_('dict')
 
     # Object Creation Assignments
     # Dict Object
-    @_('"{" NAME ":" expr { "," NAME ":" expr } [ "," ] "}"')
+    @_('"{" NAME ":" expr { "," NAME ":" expr } "}"')
     def dict(self, p):
         return ('dict', {"keys": [p.NAME0] + p.NAME1, "values": [p.expr0] + p.expr1})
 
@@ -313,7 +318,7 @@ class _VyperParser(_Parser):
         return ('allocate', {'name': p.NAME, 'type': p.type, 'initial_value': p.dict})
 
     # List Object
-    @_('"[" expr { "," expr } [ "," ] "]"')
+    @_('"[" expr { "," expr } "]"')
     def list(self, p):
         return ('list', {"values": [p.expr0] + p.expr1})
 
@@ -357,12 +362,12 @@ class _VyperParser(_Parser):
         return ('assign', {'target': target, 'expr': p.expr})
 
     # Augmented Assignment
-    @_('variable ADD "=" expr ENDSTMT')
-    @_('variable SUB "=" expr ENDSTMT')
-    @_('variable MUL "=" expr ENDSTMT')
-    @_('variable DIV "=" expr ENDSTMT')
-    @_('variable POW "=" expr ENDSTMT')
-    @_('variable MOD "=" expr ENDSTMT')
+    @_('variable AUGADD expr ENDSTMT')
+    @_('variable AUGSUB expr ENDSTMT')
+    @_('variable AUGMUL expr ENDSTMT')
+    @_('variable AUGDIV expr ENDSTMT')
+    @_('variable AUGPOW expr ENDSTMT')
+    @_('variable AUGMOD expr ENDSTMT')
     def stmt(self, p):
         expr = (p[1].lower(), p.variable, p.expr)
         # Re-arrange to Assign from BinOp
@@ -479,7 +484,7 @@ class _VyperParser(_Parser):
         return ('call', {"target": p.variable, "args": p.arguments})
 
     # Call arguments
-    @_('argument { "," argument } [ "," ]')
+    @_('argument { "," argument }')
     def arguments(self, p):
         return [p.argument0] + p.argument1
 
@@ -541,5 +546,8 @@ class _VyperParser(_Parser):
 
 def parse(text):
     tokens = tokenize(text)
+    from itertools import tee
+    display, tokens = tee(tokens)
+    print(list(tokens))
     ast = _VyperParser(text).parse(tokens)
     return ast

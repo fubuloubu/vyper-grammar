@@ -24,6 +24,7 @@ class VyperLexer(_Lexer):
         IF, ELIF, ELSE, FOR, IN, ARROW,
         AND, OR, NOT, XOR, SHL, SHR,
         ADD, SUB, MUL, DIV, POW, MOD,
+        AUGADD, AUGSUB, AUGMUL, AUGDIV, AUGPOW, AUGMOD,
         EQ, NE, LT, LE, GT, GE,
         SKIP, PASS, BREAK, CONTINUE,
         LOG, EVENT, RETURN, RAISE, ASSERT,
@@ -57,7 +58,6 @@ class VyperLexer(_Lexer):
     DEC_NUM = r"0|[1-9]\d*"
 
     ARROW = "->"
-    POW = "\*\*"
     SHL = "<<"
     SHR = ">>"
     EQ = "=="
@@ -67,6 +67,14 @@ class VyperLexer(_Lexer):
     GT = ">"
     GE = ">="
 
+    AUGPOW = "\*\*="
+    AUGADD = "\+="
+    AUGSUB = "-="
+    AUGMUL = "\*="
+    AUGDIV = "/="
+    AUGMOD = "%="
+
+    POW = "\*\*"
     ADD = "\+"
     SUB = "-"
     MUL = "\*"
@@ -291,6 +299,25 @@ def remove_double(tokens, token_type):
         yield t
 
 
+def skip_before(tokens, token_type, skip_before_tokens):
+    """
+    Filter a stream of tokens, seeing if the given token type occurs
+    before any one of a given set of tokens. If it does, skip it.
+    """
+    # Need a peekable iterator
+    tokens = _peekable(tokens)
+
+    for t in tokens:
+        if t.type == token_type:
+            try:
+                if tokens.peek().type in skip_before_tokens:
+                    t = next(tokens)  # Skip t, yielding next token
+            except StopIteration as e:
+                pass  # Yield t anyways
+
+        yield t  # Yield all tokens
+
+
 def skip_after(tokens, token_type, skip_after_tokens):
     """
     Filter a stream of tokens, seeing if the given token type occurs
@@ -384,7 +411,6 @@ def tokenize(text):
     # e.g. a = ( NEWLINE INDENT 1, NEWLINE 2, NEWLINE 3, NEWLINE DEDENT )
     # But the parser doesn't need to know about them, so remove the INDENT/DEDENT pairs
     # NOTE: The indent_tracker already removes the NEWLINEs
-    # NOTE: Keep trailing commas because tuples require them sometimes
     tokens = collapse_unnecessary_multiline(tokens)
 
     # We don't need a program that starts with a newline
