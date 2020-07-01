@@ -4,6 +4,7 @@ from sly.lex import (
     Token,
 )
 
+
 # Compute column.
 #     input is the input text string
 #     token is a token instance
@@ -120,17 +121,17 @@ class VyperLexer(_Lexer):
     GT = ">"
     GE = ">="
 
-    AUGPOW = "\*\*="
-    AUGADD = "\+="
+    AUGPOW = r"\*\*="
+    AUGADD = r"\+="
     AUGSUB = "-="
-    AUGMUL = "\*="
+    AUGMUL = r"\*="
     AUGDIV = "/="
     AUGMOD = "%="
 
-    POW = "\*\*"
-    ADD = "\+"
+    POW = r"\*\*"
+    ADD = r"\+"
     SUB = "-"
-    MUL = "\*"
+    MUL = r"\*"
     DIV = "/"
     MOD = "%"
 
@@ -167,7 +168,7 @@ class VyperLexer(_Lexer):
     NAME["UNREACHABLE"] = UNREACHABLE
     NAME["struct"] = STRUCT
     NAME["event"] = EVENT
-    NAME["contract"] = INTERFACE  # TODO Change the name of this
+    NAME["interface"] = INTERFACE
 
     @_(r"[#].*")
     def ignore_comment(self, t):
