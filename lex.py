@@ -17,39 +17,92 @@ def _find_column(text, token):
 
 class VyperLexer(_Lexer):
     tokens = {
-        NAME, STRING, DOCSTR,
-        DEC_NUM, HEX_NUM, OCT_NUM,
-        BIN_NUM, FLOAT, BOOL,
-        IMPORT, FROM, DOT, AS, DEF,
-        IF, ELIF, ELSE, FOR, IN, ARROW,
-        AND, OR, NOT, XOR, SHL, SHR,
-        ADD, SUB, MUL, DIV, POW, MOD,
-        AUGADD, AUGSUB, AUGMUL, AUGDIV, AUGPOW, AUGMOD,
-        EQ, NE, LT, LE, GT, GE,
-        SKIP, PASS, BREAK, CONTINUE,
-        LOG, EVENT, RETURN, RAISE, ASSERT,
-        UNREACHABLE, STRUCT, INTERFACE,
-        INDENT, DEDENT, ENDSTMT,  # Added during post-processing
-        TAB, SPACE, NEWLINE,  # Discarded after post-processing
+        NAME,
+        STRING,
+        DOCSTR,
+        DEC_NUM,
+        HEX_NUM,
+        OCT_NUM,
+        BIN_NUM,
+        FLOAT,
+        BOOL,
+        IMPORT,
+        FROM,
+        DOT,
+        AS,
+        DEF,
+        IF,
+        ELIF,
+        ELSE,
+        FOR,
+        IN,
+        ARROW,
+        AND,
+        OR,
+        NOT,
+        XOR,
+        SHL,
+        SHR,
+        ADD,
+        SUB,
+        MUL,
+        DIV,
+        POW,
+        MOD,
+        AUGADD,
+        AUGSUB,
+        AUGMUL,
+        AUGDIV,
+        AUGPOW,
+        AUGMOD,
+        EQ,
+        NE,
+        LT,
+        LE,
+        GT,
+        GE,
+        SKIP,
+        PASS,
+        BREAK,
+        CONTINUE,
+        LOG,
+        EVENT,
+        RETURN,
+        RAISE,
+        ASSERT,
+        UNREACHABLE,
+        STRUCT,
+        INTERFACE,
+        INDENT,
+        DEDENT,
+        ENDSTMT,  # Added during post-processing
+        TAB,
+        SPACE,
+        NEWLINE,  # Discarded after post-processing
     }
 
     literals = {
-        "=", ",",
-        ":", "@",
-        "(", ")",
-        "[", "]",
-        "{", "}",
+        "=",
+        ",",
+        ":",
+        "@",
+        "(",
+        ")",
+        "[",
+        "]",
+        "{",
+        "}",
     }
 
     # Tokens
 
-    @_('|'.join([r'"""(.|\s)*"""', r"'''(.|\s)*'''"]))
+    @_("|".join([r'"""(.|\s)*"""', r"'''(.|\s)*'''"]))
     def DOCSTR(self, t):
         # Docstrings are multiline
         self.lineno += max(t.value.count("\n"), t.value.count("\r"))
         return t
 
-    STRING = '|'.join([r'"(?!"").*"', r"'(?!"").*'"])
+    STRING = "|".join([r'"(?!"").*"', r"'(?!" ").*'"])
 
     HEX_NUM = r"0x[\da-f]*"
     OCT_NUM = r"0o[0-7]*"
@@ -137,9 +190,7 @@ class VyperLexer(_Lexer):
         # Can only use 4 spaces or the tab char to denote indent, not both
         if self.__using_spaces and self.__using_tab_char:
             col = _find_column(self.text, t)
-            raise SyntaxError(
-                f"Mixing tabs and spaces @ line {self.lineno}, col {col}"
-            )
+            raise SyntaxError(f"Mixing tabs and spaces @ line {self.lineno}, col {col}")
 
         return t
 
@@ -180,7 +231,9 @@ def indent_tracker(tokens):
     for t in tokens:
 
         if t.type == "NEWLINE":
-            starting_t = t  # Keep this in case we need to abort, or there's no indent change
+            starting_t = (
+                t  # Keep this in case we need to abort, or there's no indent change
+            )
 
             lvl = 0
             try:
@@ -193,15 +246,13 @@ def indent_tracker(tokens):
                     # Resetting the level and breaking allows the
                     # detection of TAB -> NEWLINE below to skip
                     # yielding a token
-                    if tokens.peek().type == 'NEWLINE':
+                    if tokens.peek().type == "NEWLINE":
                         lvl = indent_level
                         break
 
                     # If we have 1+ spaces after a tab, it's a problem
                     if tokens.peek().type == "SPACE":
-                        raise SyntaxError(
-                            f"Misaligned indent @ line {t.lineno}"
-                        )
+                        raise SyntaxError(f"Misaligned indent @ line {t.lineno}")
 
             except StopIteration as e:
                 # If token.peek() throws, dedent all the way
@@ -209,9 +260,7 @@ def indent_tracker(tokens):
 
             # Can only indent once per line, check if one too many tabs!
             if lvl - indent_level > 1:
-                raise SyntaxError(
-                    f"Too much indenting @ line {t.lineno}"
-                )
+                raise SyntaxError(f"Too much indenting @ line {t.lineno}")
             # One ore indent than current indent level (discard the newline)
             elif lvl > indent_level:
                 t.type = "INDENT"  # change TAB to INDENT (we"re skipping all the tabs)
@@ -223,8 +272,8 @@ def indent_tracker(tokens):
                 yield t  # We want the newline
                 dedent = Token()  # Create a new token from the last one
                 dedent.type = "DEDENT"  # Change TAB to DEDENT
-                dedent.value  = t.value
-                dedent.index  = t.index
+                dedent.value = t.value
+                dedent.index = t.index
                 dedent.lineno = t.lineno
                 # yield number of DEDENTs equal to the difference in levels
                 missing_levels = indent_level - lvl
@@ -270,7 +319,9 @@ def collapse_unnecessary_multiline(tokens):
                 try:
                     t = next(tokens)
                 except StopIteration as e:
-                    raise SyntaxError(f"No corresponding DEDENT for INDENT: {next_t}") from e
+                    raise SyntaxError(
+                        f"No corresponding DEDENT for INDENT: {next_t}"
+                    ) from e
 
                 if t.type == "INDENT":
                     raise SyntaxError(f"Cannot further indent here: {t}")
@@ -365,8 +416,8 @@ def substitute(tokens, token_type, substitute_type):
         if t.type == token_type:
             substitute = Token()
             substitute.type = substitute_type
-            substitute.value  = t.value
-            substitute.index  = t.index
+            substitute.value = t.value
+            substitute.index = t.index
             substitute.lineno = t.lineno
             yield substitute
         else:
