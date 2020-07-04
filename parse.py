@@ -75,54 +75,64 @@ class _VyperParser(_Parser):
             "functions": list(),
         }
         for stmt in p.module_stmt:
-            for k, v in stmt.items():
-                module[k.lower() + "s"].append(v)
+            # Stmt is either a (ClassName, dict) tuple, or list of those tuples
+            for k, v in stmt:  # Works in either case
+                module[k.lower().replace("def", "") + "s"].append(v)
 
         return ("Module", module)
 
     ##### IMPORTS #####
     @_("import_stmt")
     def module_stmt(self, p):
-        return {"import": p.import_stmt}
+        if isinstance(p.import_stmt, list):
+            return [("Import", stmt) for stmt in p.import_stmt]
+        else:
+            return [("Import", p.import_stmt)]
 
-    @_("IMPORT { DOT } import_path [ import_alias ] ENDSTMT")
+    @_("IMPORT import_path [ import_alias ] ENDSTMT")
     def import_stmt(self, p):
-        return ("import", {"path": p.DOT + p.import_path, "alias": p.import_alias})
+        return {"path": p.import_path, "alias": p.import_alias}
 
-    @_("import_from IMPORT MUL ENDSTMT")
+    @_("FROM import_from IMPORT MUL ENDSTMT")
     def import_stmt(self, p):
-        return ("import", {"path": p.import_from + ["*"], "alias": None})
+        return {"path": p.import_from + ["*"], "alias": None}
 
-    @_("import_from IMPORT NAME [ import_alias ] ENDSTMT")
-    def import_stmt(self, p):
-        return ("import", {"path": p.import_from + [p.NAME], "alias": p.import_alias})
-
-    @_('import_from IMPORT "(" import_list ")" ENDSTMT')
+    @_("FROM import_from IMPORT import_list ENDSTMT")
     def import_stmt(self, p):
         return [
-            ("import", {"path": p.import_from + [name], "alias": alias})
+            {"path": p.import_from + [name], "alias": alias}
             for name, alias in p.import_list
         ]
 
-    @_("FROM DOT { DOT }")
+    @_("[ import_dots ] import_name")
+    def import_path(self, p):
+        return p.import_dots + p.import_name if p.import_dots else p.import_name
+
+    @_("import_dots")
     def import_from(self, p):
-        return [p.DOT0] + p.DOT1
+        return p.import_dots
 
-    @_("FROM { DOT } import_path")
+    @_("[ import_dots ] import_name")
     def import_from(self, p):
-        return p.DOT
+        return p.import_dots + p.import_name if p.import_dots else p.import_name
 
-    @_('import_list_item { "," import_list_item }')
-    def import_list(self, p):
-        return [p.import_list_item0] + p.import_list_item1
-
-    @_("NAME [ import_alias ]")
-    def import_list_item(self, p):
-        return (p.NAME, p.import_alias)
+    @_("DOT { DOT }")
+    def import_dots(self, p):
+        levels = len([p.DOT0] + p.DOT1)
+        return [".."] * (levels - 1) if levels > 1 else ["."]
 
     @_("NAME { DOT NAME }")
-    def import_path(self, p):
+    def import_name(self, p):
         return [p.NAME0] + p.NAME1
+
+    @_('import_item { "," import_item }')
+    @_('"(" import_item { "," import_item } [ "," ] ")"')
+    def import_list(self, p):
+        return [p.import_item0] + p.import_item1
+
+    @_("NAME [ import_alias ]")
+    def import_item(self, p):
+        return (p.NAME, p.import_alias)
 
     @_("AS NAME")
     def import_alias(self, p):
