@@ -67,4 +67,4 @@ SOURCES = IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS + INTERFACE
 
 @pytest.mark.parametrize("source", SOURCES)
 def test_grammar(source):
-    parse(source)
+    parse(source, display_tokens=True)
