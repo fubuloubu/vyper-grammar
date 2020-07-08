@@ -161,17 +161,25 @@ class _VyperParser(_Parser):
         return ("ArrayType", {"type": p.type, "size": p.NAME, "len": p.NAME})
 
     # Tuple definitions
-    @_('"(" type { "," type } "," ")"')
-    def tuple_type(self, p):
-        return ("TupleType", {"types": [p.type0] + p.type1})
-
-    @_('"(" type "," type { "," type } ")"')
-    def tuple_type(self, p):
-        return ("TupleType", {"types": [p.type0, p.type1] + p.type2})
-
     @_('"(" "," ")"')
     def tuple_type(self, p):
         return ("TupleType", {"types": list()})
+
+    @_('"(" type "," ")"')
+    def tuple_type(self, p):
+        return ("TupleType", {"types": [p.type]})
+
+    @_('"(" tuple_members [ "," ] ")"')
+    def tuple_type(self, p):
+        return ("TupleType", {"types": p.tuple_members})
+
+    @_('type "," type')
+    def tuple_members(self, p):
+        return [p.type0, p.type1]
+
+    @_('tuple_members "," type')
+    def tuple_members(self, p):
+        return p.tuple_members + [p.type]
 
     # Mapping definitions
     @_('NAME "[" base_type "," type "]"')
