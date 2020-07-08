@@ -1,3 +1,4 @@
+from itertools import chain as _chain
 from more_itertools import peekable as _peekable
 from sly.lex import (
     Lexer as _Lexer,
@@ -464,6 +465,22 @@ def swap_order(tokens, a_type, b_type):
         yield t
 
 
+def add_last(tokens, type_to_add):
+    """
+    Pass-through all the tokens in the stream, appending an additional token
+    of `type_to_add` to the end
+    """
+    for t in tokens:
+        yield t
+
+    last_t = VyperToken()
+    last_t.type = type_to_add
+    last_t.value = t.value
+    last_t.index = t.index
+    last_t.lineno = t.lineno
+    yield last_t
+
+
 def tokenize(text):
     """
     Override behavior to integrate various token modification filters
@@ -477,6 +494,9 @@ def tokenize(text):
     # where there are >1 comments in a row, which messes with
     # our indent tracker
     tokens = remove_double(tokens, "NEWLINE")
+
+    # Ensure that we can parse programs that don't end with an newline
+    tokens = add_last(tokens, "NEWLINE")
 
     # Do our indent algorithm, returning a stream without contextual whitespace
     tokens = indent_tracker(tokens)

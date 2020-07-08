@@ -2,64 +2,64 @@ import pytest
 from parse import parse
 
 IMPORTS = [
-    "import a\n",
-    "import a as b\n",
-    "import .a\n",
-    "import .a as b\n",
-    "import .a.b\n",
-    "import .a.b as c\n",
-    "from a import b\n",
-    "from a import b as c\n",
-    "from .a import b\n",
-    "from .a import b as c\n",
-    "from ..a import b\n",
-    "from ..a import b as c\n",
-    "from . import a\n",
-    "from . import a as b\n",
-    "from .. import a\n",
-    "from .. import a as b\n",
-    "from ... import a\n",
-    "from ... import a as b\n",
-    "from a import (b, d as e)\n",
-    "from a import (b as c, d)\n",
-    "from a import (b, d)\n",
-    "from a import (b as c, d as e)\n",
+    "import a",
+    "import a as b",
+    "import .a",
+    "import .a as b",
+    "import .a.b",
+    "import .a.b as c",
+    "from a import b",
+    "from a import b as c",
+    "from .a import b",
+    "from .a import b as c",
+    "from ..a import b",
+    "from ..a import b as c",
+    "from . import a",
+    "from . import a as b",
+    "from .. import a",
+    "from .. import a as b",
+    "from ... import a",
+    "from ... import a as b",
+    "from a import (b, d as e)",
+    "from a import (b as c, d)",
+    "from a import (b, d)",
+    "from a import (b as c, d as e)",
 ]
 
 MAPPINGS = [
-    "a: HashMap[uint256, uint256]\n",
-    "b: HashMap[uint256, HashMap[uint256, uint256]]\n",
-    "c: HashMap[A, HashMap[B, HashMap[C, D]]]\n",
+    "a: HashMap[uint256, uint256]",
+    "b: HashMap[uint256, HashMap[uint256, uint256]]",
+    "c: HashMap[A, HashMap[B, HashMap[C, D]]]",
 ]
 
 TUPLES = [
-    "a: (,)\n",
-    "b: (A,)\n",
-    "c: (A, B)\n",
-    "d: (A, B,)\n",
-    "e: (A, B, C)\n",
-    "f: (A, B, C,)\n",
+    "a: (,)",
+    "b: (A,)",
+    "c: (A, B)",
+    "d: (A, B,)",
+    "e: (A, B, C)",
+    "f: (A, B, C,)",
 ]
 
 CONSTANTS = [
-    "a: constant(uint256) = 0\n",
+    "a: constant(uint256) = 0",
 ]
 
 EVENTS = [
-    "event A:\n    pass\n",
-    "event A:\n    a: uint256\n    b: indexed(uint256)\n",
+    "event A:\n    pass",
+    "event A:\n    a: uint256\n    b: indexed(uint256)",
 ]
 
 STRUCTS = [
-    "struct A:\n    pass\n",
-    "struct A:\n    a: uint256\n    b: uint256\n",
+    "struct A:\n    pass",
+    "struct A:\n    a: uint256\n    b: uint256",
 ]
 
 INTERFACES = [
-    "interface A:\n    def foo(): nonpayable\n",
-    "interface A:\n    def bar() -> uint256: view\n",
-    "interface A:\n    def baz(a: uint256): payable\n",
-    "interface A:\n    def biz(a: uint256) -> uint256: pure\n",
+    "interface A:\n    def foo(): nonpayable",
+    "interface A:\n    def bar() -> uint256: view",
+    "interface A:\n    def baz(a: uint256): payable",
+    "interface A:\n    def biz(a: uint256) -> uint256: pure",
 ]
 
 SOURCES = IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS + INTERFACES
