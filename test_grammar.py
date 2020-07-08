@@ -62,7 +62,14 @@ INTERFACES = [
     "interface A:\n    def biz(a: uint256) -> uint256: pure",
 ]
 
-SOURCES = IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS + INTERFACES
+FUNCTIONS = [
+    "def a():\n    pass",
+    "def a():\n    assert True",
+]
+
+SOURCES = (
+    IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS + INTERFACES + FUNCTIONS
+)
 
 
 @pytest.mark.parametrize("source", SOURCES)
