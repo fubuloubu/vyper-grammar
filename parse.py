@@ -231,16 +231,18 @@ class _VyperParser(_Parser):
         NAME ":" type
       { NAME ":" type }
     DEDENT
+    ENDSTMT
     """
     )
     def struct_def(self, p):
         return (
             "StructDef",
             {
+                "name": p.NAME0,
                 "members": [
                     {"name": n, "type": t}
-                    for n, t in zip([p.NAME0] + p.NAME1, [p.type0] + p.type1)
-                ]
+                    for n, t in zip([p.NAME1] + p.NAME2, [p.type0] + p.type1)
+                ],
             },
         )
 
@@ -250,10 +252,11 @@ class _VyperParser(_Parser):
     INDENT
         PASS
     DEDENT
+    ENDSTMT
     """
     )
     def struct_def(self, p):
-        return ("StructDef", {"members": list()})
+        return ("StructDef", {"name": p.NAME, "members": list()})
 
     ##### INTERFACE DEFINTIIONS #####
     @_(
@@ -263,18 +266,20 @@ class _VyperParser(_Parser):
         function_type ":" NAME
       { function_type ":" NAME }
     DEDENT
+    ENDSTMT
     """
     )
     def interface_def(self, p):
         return (
             "InterfaceDef",
             {
+                "name": p.NAME0,
                 "functions": [
                     {**f, "mutability": n}
                     for f, n in zip(
-                        [p.function_type0] + p.function_type1, [p.NAME0] + p.NAME1
+                        [p.function_type0] + p.function_type1, [p.NAME1] + p.NAME2
                     )
-                ]
+                ],
             },
         )
 
@@ -284,10 +289,11 @@ class _VyperParser(_Parser):
     INDENT
         PASS
     DEDENT
+    ENDSTMT
     """
     )
     def interface_def(self, p):
-        return ("InterfaceDef", {"functions": list()})
+        return ("InterfaceDef", {"name": p.NAME, "functions": list()})
 
     ##### EVENT DEFITIONS #####
     @_(
@@ -297,10 +303,14 @@ class _VyperParser(_Parser):
         event_member
       { event_member }
     DEDENT
+    ENDSTMT
     """
     )
     def event_def(self, p):
-        return ("EventDef", {"members": [p.event_member0] + p.event_member1})
+        return (
+            "EventDef",
+            {"name": p.NAME, "members": [p.event_member0] + p.event_member1},
+        )
 
     @_(
         """
@@ -308,10 +318,11 @@ class _VyperParser(_Parser):
     INDENT
         PASS
     DEDENT
+    ENDSTMT
     """
     )
     def event_def(self, p):
-        return ("EventDef", {"members": list()})
+        return ("EventDef", {"name": p.NAME, "members": list()})
 
     @_('NAME ":" NAME "(" type ")"')
     def event_member(self, p):

@@ -45,7 +45,19 @@ CONSTANTS = [
     "a: constant(uint256) = 0\n",
 ]
 
+EVENTS = [
+    "event A:\n    pass\n",
+    "event A:\n    a: uint256\n    b: indexed(uint256)\n",
+]
 
-@pytest.mark.parametrize("source", IMPORTS + MAPPINGS + TUPLES + CONSTANTS)
+STRUCTS = [
+    "struct A:\n    pass\n",
+    "struct A:\n    a: uint256\n    b: uint256\n",
+]
+
+SOURCES = IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS
+
+
+@pytest.mark.parametrize("source", SOURCES)
 def test_grammar(source):
     parse(source)
