@@ -65,6 +65,8 @@ INTERFACES = [
 FUNCTIONS = [
     "def a():\n    pass",
     "def a():\n    assert True",
+    "@view\ndef a():\n    assert True",
+    "@payable\n@external\ndef a():\n    assert True",
 ]
 
 SOURCES = (
