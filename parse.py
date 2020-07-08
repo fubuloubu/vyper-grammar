@@ -199,10 +199,12 @@ class _VyperParser(_Parser):
         return p.tuple_members + [p.type]
 
     # Mapping definitions
-    @_('NAME "[" base_type "," type "]"')
+    @_('NAME "[" base_type "," base_type "]"')
+    @_('NAME "[" base_type "," array_type "]"')
+    @_('NAME "[" base_type "," mapping_type "]"')
     def mapping_type(self, p):
         assert p.NAME == "HashMap"
-        return ("MappingType", {"key_type": p.base_type0, "val_type": p.type})
+        return ("MappingType", {"key_type": p[2], "val_type": p[4]})
 
     ##### VARIABLE DEFINITIONS #####
     @_('NAME ":" type ENDSTMT')
