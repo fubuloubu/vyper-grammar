@@ -338,9 +338,9 @@ class _VyperParser(_Parser):
     def decorator(self, p):
         return ("decorator", {"name": p.NAME, "arguments": p.arguments})
 
-    @_('{ parameter "," }')
+    @_('parameter { "," parameter }')
     def parameters(self, p):
-        return p.parameter
+        return [p.parameter0] + p.parameter1
 
     @_('NAME ":" type [ "=" variable ]')
     def parameter(self, p):
@@ -349,11 +349,11 @@ class _VyperParser(_Parser):
             {"name": p.NAME, "type": p.type, "default_value": p.variable,},
         )
 
-    @_("ARROW NAME")
+    @_("ARROW type")
     def returns(self, p):
-        return p.NAME
+        return p.type
 
-    @_('DEF NAME "(" parameters ")" [ returns ]')
+    @_('DEF NAME "(" [ parameters ] ")" [ returns ]')
     def function_type(self, p):
         return {"name": p.NAME, "parameters": p.parameters, "returns": p.returns}
 
