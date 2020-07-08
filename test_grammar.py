@@ -55,7 +55,14 @@ STRUCTS = [
     "struct A:\n    a: uint256\n    b: uint256\n",
 ]
 
-SOURCES = IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS
+INTERFACES = [
+    "interface A:\n    def foo(): nonpayable\n",
+    "interface A:\n    def bar() -> uint256: view\n",
+    "interface A:\n    def baz(a: uint256): payable\n",
+    "interface A:\n    def biz(a: uint256) -> uint256: pure\n",
+]
+
+SOURCES = IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS + INTERFACES
 
 
 @pytest.mark.parametrize("source", SOURCES)
