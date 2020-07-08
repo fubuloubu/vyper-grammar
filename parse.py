@@ -67,28 +67,45 @@ class _VyperParser(_Parser):
         module = {
             "doc": p.DOCSTR,
             "imports": list(),
-            "interfaces": list(),
-            "structs": list(),
-            "events": list(),
-            "storage": list(),
-            "constants": list(),
-            "functions": list(),
+            "interface_defs": list(),
+            "struct_defs": list(),
+            "event_defs": list(),
+            "storage_defs": list(),
+            "constant_defs": list(),
+            "function_defs": list(),
         }
         for stmt in p.module_stmt:
-            # Stmt is either a (ClassName, dict) tuple, or list of those tuples
-            for k, v in stmt:  # Works in either case
-                module[k.lower().replace("def", "") + "s"].append(v)
+            # Stmt is either a (ClassName, dict) tuple
+            if isinstance(stmt, tuple):
+                k, v = stmt
+                module[k.lower().replace("def", "_def") + "s"].append(v)
+            # or list of those tuples
+            elif isinstance(stmt, list):
+                for k, v in stmt:
+                    module[k.lower().replace("def", "") + "s"].append(v)
+            else:
+                raise ValueError(f"Cannot accept: {stmt}")
 
         return ("Module", module)
 
-    ##### IMPORTS #####
     @_("import_stmt")
     def module_stmt(self, p):
+        # Handle multiple imports
         if isinstance(p.import_stmt, list):
             return [("Import", stmt) for stmt in p.import_stmt]
         else:
             return [("Import", p.import_stmt)]
 
+    @_("interface_def")
+    @_("struct_def")
+    @_("event_def")
+    @_("storage_def")
+    @_("constant_def")
+    @_("function_def")
+    def module_stmt(self, p):
+        return p[0]
+
+    ##### IMPORTS #####
     @_("IMPORT import_path [ import_alias ] ENDSTMT")
     def import_stmt(self, p):
         return {"path": p.import_path, "alias": p.import_alias}
@@ -188,10 +205,6 @@ class _VyperParser(_Parser):
         return ("MappingType", {"key_type": p.base_type0, "val_type": p.type})
 
     ##### VARIABLE DEFINITIONS #####
-    @_("storage_def")
-    def module_stmt(self, p):
-        return {"storage": p.storage_def}
-
     @_('NAME ":" type ENDSTMT')
     def storage_def(self, p):
         return ("StorageDef", {"name": p.NAME, "type": p.type, "decorator": None})
@@ -202,10 +215,6 @@ class _VyperParser(_Parser):
         return ("StorageDef", {"name": p.NAME0, "type": p.type, "decorator": p.NAME1})
 
     ##### CONSTANT DEFINITIONS #####
-    @_("constant_def")
-    def module_stmt(self, p):
-        return {"constant": p.constant_def}
-
     # TODO Change to an actual decorator
     @_('NAME ":" NAME "(" type ")" "=" expr ENDSTMT')
     def constant_def(self, p):
@@ -213,10 +222,6 @@ class _VyperParser(_Parser):
         return ("ConstantDef", {"name": p.NAME0, "type": p.type, "value": p.expr})
 
     ##### STRUCT DEFINITIONS #####
-    @_("struct_def")
-    def module_stmt(self, p):
-        return {"struct": p.struct_def}
-
     @_(
         """
     STRUCT NAME ":"
@@ -249,10 +254,6 @@ class _VyperParser(_Parser):
         return ("StructDef", {"members": list()})
 
     ##### INTERFACE DEFINTIIONS #####
-    @_("interface_def")
-    def module_stmt(self, p):
-        return {"interface": p.interface_def}
-
     @_(
         """
     INTERFACE NAME ":"
@@ -287,10 +288,6 @@ class _VyperParser(_Parser):
         return ("InterfaceDef", {"functions": list()})
 
     ##### EVENT DEFITIONS #####
-    @_("event_def")
-    def module_stmt(self, p):
-        return {"event": p.event_def}
-
     @_(
         """
     EVENT NAME ":"
@@ -324,10 +321,6 @@ class _VyperParser(_Parser):
         return {"name": p.NAME, "indexed": False, "type": p.type}
 
     ##### FUNCTION DEFINITIONS #####
-    @_("function_def")
-    def module_stmt(self, p):
-        return {"function": p.function_def}
-
     @_('"@" NAME [ "(" arguments ")" ] ENDSTMT')
     def decorator(self, p):
         return ("decorator", {"name": p.NAME, "arguments": p.arguments})
