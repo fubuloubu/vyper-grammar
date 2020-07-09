@@ -32,6 +32,11 @@ MAPPINGS = [
     "c: HashMap[A, HashMap[B, HashMap[C, D]]]",
 ]
 
+ARRAYS = [
+    "a: uint256[1]",
+    "a: uint256[A]",
+]
+
 TUPLES = [
     "a: (,)",
     "b: (A,)",
@@ -70,7 +75,15 @@ FUNCTIONS = [
 ]
 
 SOURCES = (
-    IMPORTS + MAPPINGS + TUPLES + CONSTANTS + EVENTS + STRUCTS + INTERFACES + FUNCTIONS
+    IMPORTS
+    + MAPPINGS
+    + ARRAYS
+    + TUPLES
+    + CONSTANTS
+    + EVENTS
+    + STRUCTS
+    + INTERFACES
+    + FUNCTIONS
 )
 
 
