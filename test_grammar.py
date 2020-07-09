@@ -74,16 +74,43 @@ FUNCTIONS = [
     "@payable\n@external\ndef a():\n    assert True",
 ]
 
+DICTS = [
+    "def a():\n    a: thing = {}",
+    "def a():\n    a: thing = {a: 1}",
+    "def a():\n    a: thing = {a: 1, b: 2}",
+]
+
+MATH = [
+    "def a():\n    a = a + 1",
+    "def a():\n    a += 1",
+    "def a():\n    a = a - 1",
+    "def a():\n    a -= 1",
+    "def a():\n    a = a * 1",
+    "def a():\n    a *= 1",
+    "def a():\n    a = a / 1",
+    "def a():\n    a /= 1",
+]
+
+STATEMENTS = [
+    "def a():\n    continue",
+    "def a():\n    break",
+    "def a():\n    if cond:\n        stuff()",
+    "def a():\n    for i in stuff:\n        assert i",
+]
+
 SOURCES = (
     IMPORTS
     + MAPPINGS
     + ARRAYS
     + TUPLES
+    + DICTS
     + CONSTANTS
     + EVENTS
     + STRUCTS
     + INTERFACES
     + FUNCTIONS
+    + STATEMENTS
+    + MATH
 )
 
 
