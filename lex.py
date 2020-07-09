@@ -276,7 +276,8 @@ def indent_tracker(tokens):
                         raise SyntaxError(f"Misaligned indent @ line {t.lineno}")
 
             except StopIteration as e:
-                # If token.peek() throws, dedent all the way
+                # If token.peek() throws, we are at the end of program
+                # so dedent all the way
                 lvl = 0
 
             # Can only indent once per line, check if one too many tabs!
@@ -284,6 +285,7 @@ def indent_tracker(tokens):
                 raise SyntaxError(f"Too much indenting @ line {t.lineno}")
             # One ore indent than current indent level (discard the newline)
             elif lvl > indent_level:
+                # NOTE: Skip the NEWLINE, we are entering into a new body
                 t.type = "INDENT"  # change TAB to INDENT (we"re skipping all the tabs)
                 indent_level += 1  # increment indent by one level
                 yield t
@@ -292,7 +294,7 @@ def indent_tracker(tokens):
             elif lvl < indent_level:
                 yield t  # We want the newline
                 dedent = VyperToken()  # Create a new token from the last one
-                dedent.type = "DEDENT"  # Change TAB to DEDENT
+                dedent.type = "DEDENT"  # Change TAB to DEDENT (or add it if NEWLINE)
                 dedent.value = t.value
                 dedent.index = t.index
                 dedent.lineno = t.lineno
@@ -301,7 +303,7 @@ def indent_tracker(tokens):
                 for _ in range(missing_levels):
                     indent_level -= 1  # dedent by one level
                     yield dedent
-            # No indent, so keep the newline
+            # No indent or dedent occured, so keep the newline if it's not an empty line
             elif t.type != "TAB":
                 yield starting_t
             # TAB(s) + NEWLINE is whitespace, which we ignore
