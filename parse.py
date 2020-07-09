@@ -228,8 +228,8 @@ class _VyperParser(_Parser):
         """
     STRUCT NAME ":"
     INDENT
-        NAME ":" type
-      { NAME ":" type }
+        NAME ":" type ENDSTMT
+      { NAME ":" type ENDSTMT }
     DEDENT
     ENDSTMT
     """
@@ -250,7 +250,7 @@ class _VyperParser(_Parser):
         """
     STRUCT NAME ":"
     INDENT
-        PASS
+        PASS ENDSTMT
     DEDENT
     ENDSTMT
     """
@@ -263,8 +263,8 @@ class _VyperParser(_Parser):
         """
     INTERFACE NAME ":"
     INDENT
-        function_type ":" NAME
-      { function_type ":" NAME }
+        function_type ":" NAME ENDSTMT
+      { function_type ":" NAME ENDSTMT }
     DEDENT
     ENDSTMT
     """
@@ -287,7 +287,7 @@ class _VyperParser(_Parser):
         """
     INTERFACE NAME ":"
     INDENT
-        PASS
+        PASS ENDSTMT
     DEDENT
     ENDSTMT
     """
@@ -300,8 +300,8 @@ class _VyperParser(_Parser):
         """
     EVENT NAME ":"
     INDENT
-        event_member
-      { event_member }
+        event_member ENDSTMT
+      { event_member ENDSTMT }
     DEDENT
     ENDSTMT
     """
@@ -316,7 +316,7 @@ class _VyperParser(_Parser):
         """
     EVENT NAME ":"
     INDENT
-        PASS
+        PASS ENDSTMT
     DEDENT
     ENDSTMT
     """
@@ -363,12 +363,12 @@ class _VyperParser(_Parser):
         function.update({"decorators": p.decorator, "doc": p.DOCSTR, "body": p.body})
         return ("FunctionDef", function)
 
-    @_("INDENT stmt { stmt } DEDENT")
+    @_("INDENT stmt { stmt } DEDENT ENDSTMT")
     def body(self, p):
         # Bodies of multiline statements
         return [p.stmt0] + p.stmt1
 
-    @_("INDENT PASS ENDSTMT DEDENT")
+    @_("INDENT PASS ENDSTMT DEDENT ENDSTMT")
     def body(self, p):
         # Bodies can either be a list of 1+ stmts, or PASS
         return list()
