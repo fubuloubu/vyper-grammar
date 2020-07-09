@@ -477,8 +477,8 @@ def add_last(tokens, type_to_add):
 
     last_t = VyperToken()
     last_t.type = type_to_add
-    last_t.value = t.value
-    last_t.index = t.index
+    last_t.value = ""
+    last_t.index = t.index + len(t.value)
     last_t.lineno = t.lineno
     yield last_t
 
